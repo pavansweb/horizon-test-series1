@@ -313,11 +313,33 @@ Return a STRICTLY VALID JSON object with this exact schema:
   "pdfEndPage": number,
   "detectedSummary": string
 }
-Rules:
-1. Examine which subject appears FIRST in the question paper! If Chemistry is first, list Chemistry first in subjects.
-2. For answerKey, convert MCQ numbers (1,2,3,4) to A,B,C,D. Preserve numerical values for integer questions.
-3. If no answer key is in the PDF, return an empty object {} for answerKey.
-4. Return ONLY raw JSON without markdown formatting."""
+
+Critical Instructions:
+1. SUBJECT SEQUENCE & ORDER:
+   Examine which subject appears FIRST in the question paper!
+   - If Chemistry is the first section (e.g. Q1-25 or Q1-30), list Chemistry as the FIRST item in the "subjects" array!
+   - If Physics is first, list Physics first.
+   - If Mathematics is first, list Mathematics first.
+   - Ensure startQuestion, endQuestion, and totalQuestions are contiguous and accurate (e.g. 1-25, 26-50, 51-75).
+
+2. INTEGER QUESTIONS:
+   Identify which questions are Numerical Value / Integer type (typically the last 5 questions of each section, e.g. 21-25, 46-50, 71-75, or 21-30, 51-60, 81-90). List all their question numbers in the "integerQuestions" array.
+
+3. ANSWER KEY EXTRACTION:
+   - Search the entire PDF (especially the last few pages or question end) for any Answer Key, Solutions, or Key table.
+   - For Multiple Choice Questions: convert numeric options (1, 2, 3, 4) or ((1), (2), (3), (4)) to uppercase letters 'A', 'B', 'C', 'D'.
+   - For Numerical/Integer Questions: preserve the numerical answer (e.g. "4", "15", "0.5").
+   - If no answer key is found in the PDF, return an empty object {} for "answerKey".
+
+4. PAGE RANGES FOR CBT STUDENT EXAM (CRITICAL - DO NOT INCLUDE SOLUTIONS):
+   - pdfStartPage: The 1-based page number where Section 1 / Question 1 actually starts (skip any cover page or general instructions sheet, typically 1 or 2).
+   - pdfEndPage: The 1-based page number where the LAST QUESTION of the exam ends (e.g. Question 75 or Question 90).
+   - STRICT INTEGRITY RULE: DO NOT INCLUDE ANY ANSWER KEY TABLES, HINTS, STEP-BY-STEP SOLUTIONS, OR EXPLANATION PAGES IN pdfEndPage!
+     The student CBT interface ONLY renders pages from pdfStartPage to pdfEndPage during the live exam.
+     Therefore, pdfEndPage MUST be the page containing the final question, BEFORE any answer key table, hint, or solutions section begins!
+     (For example, if questions are on pages 1 to 14, and detailed solutions are on pages 15 to 28, set pdfEndPage to 14, NEVER 28!)
+
+5. Return ONLY clean, raw JSON matching the schema above."""
 
     models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash']
     payload = json.dumps({

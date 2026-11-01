@@ -1,10 +1,20 @@
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
 import { Test, PublicTest, TestResult } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const isServerless = !!(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
+
+const DATA_DIR = isServerless
+  ? path.join(os.tmpdir(), 'jee-portal-data')
+  : path.join(process.cwd(), 'data');
+
 const TESTS_FILE = path.join(DATA_DIR, 'tests.json');
 const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 
@@ -12,44 +22,81 @@ const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 let submissionsCache: Record<string, TestResult> | null = null;
 
 async function ensureDataFiles(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+  } catch {
+    // Ignore read-only or existing dir
+  }
+
   try {
     await fs.access(TESTS_FILE);
   } catch {
-    await fs.writeFile(TESTS_FILE, JSON.stringify([], null, 2), 'utf-8');
+    try {
+      // Seed from bundled data if available
+      const bundledPath = path.join(process.cwd(), 'data', 'tests.json');
+      let initialData = '[]';
+      try {
+        initialData = await fs.readFile(bundledPath, 'utf-8');
+      } catch {
+        // Ignore
+      }
+      await fs.writeFile(TESTS_FILE, initialData, 'utf-8');
+    } catch {
+      // Read-only filesystem
+    }
   }
 
   try {
     await fs.access(SUBMISSIONS_FILE);
   } catch {
-    await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify({}, null, 2), 'utf-8');
+    try {
+      await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify({}, null, 2), 'utf-8');
+    } catch {
+      // Read-only filesystem
+    }
   }
 }
 
 async function getLocalTests(includeDrafts: boolean = false): Promise<Test[]> {
-  await ensureDataFiles();
+  try {
+    await ensureDataFiles();
+  } catch {
+    // Ignore
+  }
+
   try {
     const raw = await fs.readFile(TESTS_FILE, 'utf-8');
     const tests: Test[] = JSON.parse(raw);
-    if (includeDrafts) {
-      return tests;
-    }
+    if (includeDrafts) return tests;
     return tests.filter((t) => t.status === 'published');
   } catch {
-    return [];
+    // Fallback: try reading bundled tests.json
+    try {
+      const bundledPath = path.join(process.cwd(), 'data', 'tests.json');
+      const raw = await fs.readFile(bundledPath, 'utf-8');
+      const tests: Test[] = JSON.parse(raw);
+      if (includeDrafts) return tests;
+      return tests.filter((t) => t.status === 'published');
+    } catch {
+      return [];
+    }
   }
 }
 
 async function saveTestLocally(test: Test): Promise<void> {
-  await ensureDataFiles();
-  const tests = await getLocalTests(true);
-  const index = tests.findIndex((t) => t.id === test.id);
-  if (index >= 0) {
-    tests[index] = test;
-  } else {
-    tests.unshift(test);
+  try {
+    await ensureDataFiles();
+    const tests = await getLocalTests(true);
+    const index = tests.findIndex((t) => t.id === test.id);
+    if (index >= 0) {
+      tests[index] = test;
+    } else {
+      tests.unshift(test);
+    }
+    await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Local test cache save skipped (non-fatal):', err);
   }
-  await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
 }
 
 type DbRow = Record<string, unknown>;
@@ -356,10 +403,14 @@ export async function deleteTest(id: string): Promise<boolean> {
     }
   }
 
-  await ensureDataFiles();
-  const tests = await getLocalTests(true);
-  const filtered = tests.filter((t) => t.id !== id);
-  await fs.writeFile(TESTS_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
+  try {
+    await ensureDataFiles();
+    const tests = await getLocalTests(true);
+    const filtered = tests.filter((t) => t.id !== id);
+    await fs.writeFile(TESTS_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Local delete cache skipped (non-fatal):', err);
+  }
   return true;
 }
 
@@ -384,15 +435,23 @@ export async function saveSubmission(result: TestResult): Promise<void> {
     }
   }
 
-  await ensureDataFiles();
+  if (!submissionsCache) submissionsCache = {};
+  submissionsCache[result.submissionId] = result;
+
   try {
-    const raw = await fs.readFile(SUBMISSIONS_FILE, 'utf-8');
-    const submissions: Record<string, TestResult> = JSON.parse(raw);
+    await ensureDataFiles();
+    let submissions: Record<string, TestResult> = {};
+    try {
+      const raw = await fs.readFile(SUBMISSIONS_FILE, 'utf-8');
+      submissions = JSON.parse(raw);
+    } catch {
+      submissions = {};
+    }
     submissions[result.submissionId] = result;
     await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2), 'utf-8');
     submissionsCache = submissions;
   } catch (err) {
-    console.error('Failed to save submission locally:', err);
+    console.warn('Local submission cache save skipped (non-fatal):', err);
   }
 }
 
@@ -423,8 +482,8 @@ export async function getSubmissionById(submissionId: string): Promise<TestResul
     }
   }
 
-  await ensureDataFiles();
   try {
+    await ensureDataFiles();
     const raw = await fs.readFile(SUBMISSIONS_FILE, 'utf-8');
     const submissions: Record<string, TestResult> = JSON.parse(raw);
     submissionsCache = submissions;

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'jee-question-papers';
@@ -71,13 +72,25 @@ export async function savePdf(
     }
   }
 
-  // 3. Fallback: Local filesystem (for local development or self-hosted)
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-  await fs.mkdir(uploadsDir, { recursive: true });
-  const filePath = path.join(uploadsDir, finalFilename);
-  await fs.writeFile(filePath, buffer);
+  // 3. Fallback: Local filesystem or serverless temp storage
+  const isServerless = !!(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT
+  );
+  const uploadsDir = isServerless
+    ? path.join(os.tmpdir(), 'jee-portal-uploads')
+    : path.join(process.cwd(), 'public', 'uploads');
 
-  return `/uploads/${finalFilename}`;
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const filePath = path.join(uploadsDir, finalFilename);
+    await fs.writeFile(filePath, buffer);
+    return isServerless ? `/api/pdf/${finalFilename}` : `/uploads/${finalFilename}`;
+  } catch (localErr) {
+    console.error('Local PDF storage fallback failed:', localErr);
+    throw new Error('Failed to save PDF to cloud storage or temporary storage.');
+  }
 }
 
 /**
