@@ -48,6 +48,10 @@ export function TestFormModal({
   const [previewPage, setPreviewPage] = useState<number>(1);
   const [totalPdfPages, setTotalPdfPages] = useState<number | null>(null);
 
+  // Gemini AI Auto-Formatting state
+  const [isGeminiFormatting, setIsGeminiFormatting] = useState<boolean>(false);
+  const [geminiNotice, setGeminiNotice] = useState<string | null>(null);
+
   // Marking Scheme
   const [markingCorrect, setMarkingCorrect] = useState<number>(4);
   const [markingIncorrect, setMarkingIncorrect] = useState<number>(-1);
@@ -307,6 +311,76 @@ export function TestFormModal({
     }
   };
 
+  // Google Gemini AI Auto-Formatting handler
+  const handleAutoFormatWithGemini = async () => {
+    if (!pdfFile && !testToEdit?.pdfUrl) {
+      setError('Please select or upload a Question Paper PDF first to format with Gemini AI.');
+      return;
+    }
+
+    try {
+      setIsGeminiFormatting(true);
+      setGeminiNotice('✨ Gemini AI is analyzing question paper structure, subject sequence & answer key...');
+      setError(null);
+
+      const formData = new FormData();
+      if (pdfFile) {
+        formData.append('pdf', pdfFile);
+      } else if (testToEdit?.pdfUrl) {
+        formData.append('pdfUrl', testToEdit.pdfUrl);
+      }
+
+      const res = await fetch('/api/admin/gemini/parse-paper', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Gemini paper analysis failed.');
+      }
+
+      const parsed = result.data;
+      if (parsed.title) setTitle(parsed.title);
+      if (parsed.durationMinutes) setDuration(parsed.durationMinutes);
+      if (parsed.pdfStartPage) {
+        setPdfStartPage(parsed.pdfStartPage);
+        setPreviewPage(parsed.pdfStartPage);
+      }
+      if (parsed.pdfEndPage) {
+        setPdfEndPage(parsed.pdfEndPage);
+      }
+
+      if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+        setSubjectOrder(
+          parsed.subjects.map((s: { id: string; name: string; totalQuestions: number }) => ({
+            id: s.id,
+            name: s.name,
+            count: s.totalQuestions || 25,
+          }))
+        );
+      }
+
+      const answersFound = Object.keys(parsed.answerKey || {}).length;
+      if (answersFound > 0) {
+        setAnswerKey((prev) => ({ ...prev, ...parsed.answerKey }));
+      }
+
+      const orderNames = (parsed.subjects || []).map((s: { name: string }) => s.name).join(' → ');
+      setGeminiNotice(
+        `✨ Gemini auto-format complete (${result.modelUsed})! Title: "${parsed.title || 'JEE Paper'}" • Order: ${orderNames || 'Default'} • ${
+          answersFound > 0 ? `${answersFound} answers extracted` : 'Paper structure ready'
+        }.`
+      );
+    } catch (err: unknown) {
+      console.error('Gemini error:', err);
+      setError((err as Error)?.message || 'Gemini auto-formatting failed.');
+      setGeminiNotice(null);
+    } finally {
+      setIsGeminiFormatting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -421,6 +495,17 @@ export function TestFormModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Quick Auto-Format with Gemini AI Button in Header */}
+            <button
+              type="button"
+              disabled={!pdfPreviewUrl || isGeminiFormatting}
+              onClick={handleAutoFormatWithGemini}
+              className="text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white px-3 py-1 rounded shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Analyze paper structure, subject sequence, and extract answers automatically with Gemini AI"
+            >
+              <span>{isGeminiFormatting ? '✨ Analyzing...' : '✨ Gemini Auto-Format'}</span>
+            </button>
+
             {/* Toggle Side-by-Side PDF Preview button */}
             <button
               type="button"
@@ -481,6 +566,20 @@ export function TestFormModal({
           </button>
         </div>
 
+        {/* Gemini AI Success / Progress Banner */}
+        {geminiNotice && (
+          <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-800 flex items-center justify-between flex-shrink-0 animate-fade-in">
+            <span className="flex items-center gap-1.5">{geminiNotice}</span>
+            <button
+              type="button"
+              onClick={() => setGeminiNotice(null)}
+              className="text-emerald-600 hover:text-emerald-900 font-bold ml-2 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Split Container: Left = Form / Right = Side-by-Side Live PDF Viewer */}
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left Column: Form Controls */}
@@ -538,6 +637,39 @@ export function TestFormModal({
                         </div>
                         <span className="text-[11px] text-gray-500">Auto-set from questions count &amp; marking scheme</span>
                       </div>
+                    </div>
+
+                    {/* Google Gemini AI Auto-Formatting Banner */}
+                    <div className="p-3 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border border-indigo-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-xs sm:text-sm text-indigo-950 flex items-center gap-1.5">
+                          <span>✨ Google Gemini AI Auto-Formatting</span>
+                          <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                            Fast &amp; Accurate
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-indigo-700 mt-0.5">
+                          Let Gemini analyze your PDF to auto-detect title, subject order (Chem/Phy/Math), and extract answers!
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={!pdfPreviewUrl || isGeminiFormatting}
+                        onClick={handleAutoFormatWithGemini}
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs flex-shrink-0"
+                      >
+                        {isGeminiFormatting ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Analyzing Paper...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>🪄 Auto-Format Paper with Gemini AI</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     {/* PDF Upload */}
@@ -840,14 +972,24 @@ export function TestFormModal({
                             {pdfFile?.name || testToEdit?.pdfFileName || 'PDF Attached'}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleScanPdfForAnswers}
-                          disabled={isScanningPdf}
-                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors flex-shrink-0"
-                        >
-                          🔍 {isScanningPdf ? 'Scanning PDF...' : 'Scan PDF for Answer Key'}
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAutoFormatWithGemini}
+                            disabled={isGeminiFormatting}
+                            className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          >
+                            {isGeminiFormatting ? '✨ Extracting with AI...' : '✨ Extract Key with Gemini AI'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleScanPdfForAnswers}
+                            disabled={isScanningPdf}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            🔍 {isScanningPdf ? 'Scanning...' : 'In-Browser Scan'}
+                          </button>
+                        </div>
                       </div>
                     )}
 

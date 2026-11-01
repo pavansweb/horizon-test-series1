@@ -260,6 +260,96 @@ def api_admin_toggle_publish(test_id):
     save_test(existing)
     return jsonify({'success': True, 'status': existing['status']})
 
+@app.route('/api/admin/gemini/parse-paper', methods=['POST'])
+@admin_required
+def api_admin_gemini_parse_paper():
+    import base64
+    import urllib.request
+    import json
+
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if not api_key:
+        return jsonify({'success': False, 'error': 'GEMINI_API_KEY environment variable is not configured.'}), 500
+    pdf_base64 = ''
+
+    if 'pdf' in request.files:
+        pdf_file = request.files['pdf']
+        if pdf_file and pdf_file.filename:
+            pdf_bytes = pdf_file.read()
+            pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+    elif request.is_json:
+        data = request.get_json() or {}
+        pdf_url = data.get('pdfUrl')
+        if pdf_url:
+            filename = pdf_url.replace('/uploads/', '').replace('/', '')
+            local_path = os.path.join(UPLOADS_DIR, filename)
+            if os.path.exists(local_path):
+                with open(local_path, 'rb') as f:
+                    pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+    if not pdf_base64:
+        return jsonify({'success': False, 'error': 'No PDF file provided to analyze.'}), 400
+
+    prompt = """You are an expert exam analyzer for JEE Main examination papers.
+Analyze this JEE question paper PDF thoroughly and extract its complete structure and answer key.
+Return a STRICTLY VALID JSON object with this exact schema:
+{
+  "title": string,
+  "durationMinutes": number,
+  "subjects": [
+    {
+      "id": "physics" | "chemistry" | "mathematics",
+      "name": "Physics" | "Chemistry" | "Mathematics",
+      "startQuestion": number,
+      "endQuestion": number,
+      "totalQuestions": number
+    }
+  ],
+  "integerQuestions": number[],
+  "answerKey": {
+    "[questionNumber: string]": string
+  },
+  "pdfStartPage": number,
+  "pdfEndPage": number,
+  "detectedSummary": string
+}
+Rules:
+1. Examine which subject appears FIRST in the question paper! If Chemistry is first, list Chemistry first in subjects.
+2. For answerKey, convert MCQ numbers (1,2,3,4) to A,B,C,D. Preserve numerical values for integer questions.
+3. If no answer key is in the PDF, return an empty object {} for answerKey.
+4. Return ONLY raw JSON without markdown formatting."""
+
+    models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash']
+    payload = json.dumps({
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "application/pdf", "data": pdf_base64}}
+            ]
+        }],
+        "generationConfig": {"response_mime_type": "application/json", "temperature": 0.1}
+    }).encode('utf-8')
+
+    last_error = None
+    for model in models:
+        try:
+            req = urllib.request.Request(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                if "candidates" in res_data and len(res_data["candidates"]) > 0:
+                    raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    cleaned = raw_text.replace("```json", "").replace("```", "").strip()
+                    parsed = json.loads(cleaned)
+                    return jsonify({"success": True, "modelUsed": model, "data": parsed})
+        except Exception as e:
+            last_error = str(e)
+
+    return jsonify({"success": False, "error": f"Gemini analysis failed: {last_error}"}), 502
+
 @app.route('/api/admin/tests/<test_id>', methods=['DELETE'])
 @admin_required
 def api_admin_delete_test(test_id):
