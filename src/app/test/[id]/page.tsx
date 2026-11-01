@@ -30,6 +30,7 @@ export default function TestAttemptPage({
 
   // Active question and subject state
   const [activeSubjectId, setActiveSubjectId] = useState<string>('physics');
+  const [activeFilter, setActiveFilter] = useState<string>('all');
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState<number>(1);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
@@ -225,6 +226,18 @@ export default function TestAttemptPage({
   const navigateToQuestion = (qNum: number) => {
     if (qNum < 1 || qNum > totalQuestionsCount) return;
     setCurrentQuestionNumber(qNum);
+
+    if (test) {
+      for (const sub of test.subjects) {
+        if (qNum >= sub.startQuestion && qNum <= sub.endQuestion) {
+          setActiveSubjectId(sub.id);
+          if (activeFilter !== 'all' && activeFilter !== sub.id) {
+            setActiveFilter(sub.id);
+          }
+          break;
+        }
+      }
+    }
   };
 
   const handleSaveAndNext = () => {
@@ -292,12 +305,15 @@ export default function TestAttemptPage({
     }
   };
 
-  const handleSubjectChange = (subjectId: string) => {
-    setActiveSubjectId(subjectId);
-    if (!test) return;
-    const targetSub = test.subjects.find((s) => s.id === subjectId);
-    if (targetSub) {
-      navigateToQuestion(targetSub.startQuestion);
+  const handleSelectFilter = (filter: string) => {
+    setActiveFilter(filter);
+    if (filter !== 'all') {
+      setActiveSubjectId(filter);
+      if (!test) return;
+      const targetSub = test.subjects.find((s) => s.id === filter);
+      if (targetSub && (currentQuestionNumber < targetSub.startQuestion || currentQuestionNumber > targetSub.endQuestion)) {
+        navigateToQuestion(targetSub.startQuestion);
+      }
     }
   };
 
@@ -395,8 +411,8 @@ export default function TestAttemptPage({
       <NtaSubjectBar
         subjects={test.subjects}
         activeSubjectId={activeSubjectId}
-        onSelectSubject={handleSubjectChange}
-        testGroupTag="JUT90 NEET"
+        activeFilter={activeFilter}
+        onSelectFilter={handleSelectFilter}
       />
 
       {/* 3. Outer Canvas with padding on left, right, and bottom */}
@@ -522,7 +538,7 @@ export default function TestAttemptPage({
               <NtaQuestionPalette
                 subjects={test.subjects}
                 activeSubjectId={activeSubjectId}
-                onSelectSubject={handleSubjectChange}
+                activeFilter={activeFilter}
                 currentQuestionNumber={currentQuestionNumber}
                 onSelectQuestion={navigateToQuestion}
                 candidateResponses={candidateResponses}

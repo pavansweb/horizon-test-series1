@@ -7,6 +7,7 @@ import { NtaPaletteBadge, NtaLegendBadge } from './NtaPaletteBadge';
 interface NtaQuestionPaletteProps {
   subjects: SubjectConfig[];
   activeSubjectId?: string;
+  activeFilter?: string; // 'all' or subjectId ('physics', 'chemistry', 'mathematics')
   onSelectSubject?: (subjectId: string) => void;
   currentQuestionNumber: number;
   onSelectQuestion: (questionNumber: number) => void;
@@ -15,20 +16,25 @@ interface NtaQuestionPaletteProps {
 
 export function NtaQuestionPalette({
   subjects,
+  activeFilter = 'all',
   currentQuestionNumber,
   onSelectQuestion,
   candidateResponses,
 }: NtaQuestionPaletteProps) {
   // Determine section ranges: from subjects or chunks of 25 questions
   const totalQuestions = subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
-  const sections: { startQuestion: number; endQuestion: number }[] =
+  const rawSections: (SubjectConfig | { id: string; name: string; startQuestion: number; endQuestion: number; totalQuestions: number })[] =
     subjects && subjects.length > 0
       ? subjects
       : [
-          { startQuestion: 1, endQuestion: Math.min(25, totalQuestions) },
-          { startQuestion: 26, endQuestion: Math.min(50, totalQuestions) },
-          { startQuestion: 51, endQuestion: totalQuestions },
+          { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: Math.min(25, totalQuestions), totalQuestions: 25 },
+          { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: Math.min(50, totalQuestions), totalQuestions: 25 },
+          { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: totalQuestions, totalQuestions: 25 },
         ].filter((s) => s.startQuestion <= totalQuestions);
+
+  const sections = activeFilter && activeFilter !== 'all'
+    ? rawSections.filter((s) => s.id === activeFilter)
+    : rawSections;
 
   return (
     <div

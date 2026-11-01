@@ -6,68 +6,81 @@ import { SubjectConfig } from '@/lib/types';
 interface NtaSubjectBarProps {
   subjects: SubjectConfig[];
   activeSubjectId: string;
-  onSelectSubject: (subjectId: string) => void;
-  testGroupTag?: string;
+  activeFilter?: string; // 'all' or subjectId ('physics', 'chemistry', 'mathematics')
+  onSelectFilter: (filter: string) => void;
 }
 
 export function NtaSubjectBar({
   subjects,
-  activeSubjectId,
-  onSelectSubject,
-  testGroupTag = 'JUT90 NEET',
+  activeFilter = 'all',
+  onSelectFilter,
 }: NtaSubjectBarProps) {
+  const isAllActive = activeFilter === 'all';
+
   return (
     <div
       className="w-full flex items-center select-none"
       style={{
         background: '#1e4273',
         borderBottom: '1px solid #132f54',
-        minHeight: '34px',
+        minHeight: '38px',
         padding: '0 0px',
       }}
     >
       <div className="flex items-stretch h-full overflow-x-auto">
-        {/* Test Group / Exam Code Tag Badge (e.g. JUT90 NEET) */}
-        <div
+        {/* 1. ALL QUESTIONS Tab Button (replaces JUT90 NEET) */}
+        <button
+          type="button"
+          onClick={() => onSelectFilter('all')}
           style={{
-            padding: '7px 14px',
-            fontSize: '11px',
+            padding: '8px 18px',
+            fontSize: '12px',
             fontWeight: 700,
-            color: '#ffffff',
-            background: '#15345d',
+            cursor: 'pointer',
+            border: 'none',
             borderRight: '1px solid #2b568c',
             letterSpacing: '0.6px',
+            textTransform: 'uppercase',
+            background: isAllActive ? '#15345d' : 'transparent',
+            color: isAllActive ? '#ffffff' : '#bfdbfe',
+            borderBottom: isAllActive ? '3px solid #60a5fa' : '3px solid transparent',
+            whiteSpace: 'nowrap',
             display: 'flex',
             alignItems: 'center',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!isAllActive) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)';
+          }}
+          onMouseLeave={(e) => {
+            if (!isAllActive) e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          {testGroupTag}
-        </div>
+          ALL QUESTIONS
+        </button>
 
-        {/* Subject Tabs */}
+        {/* 2. Individual Subject Tabs (Physics, Chemistry, Mathematics) */}
         {subjects.map((subject) => {
-          const isActive = subject.id === activeSubjectId;
+          const isActive = activeFilter === subject.id;
 
           return (
             <button
               key={subject.id}
               type="button"
-              onClick={() => onSelectSubject(subject.id)}
+              onClick={() => onSelectFilter(subject.id)}
               style={{
-                padding: '7px 18px',
-                fontSize: '11px',
+                padding: '8px 18px',
+                fontSize: '12px',
                 fontWeight: 700,
                 cursor: 'pointer',
                 border: 'none',
                 borderRight: '1px solid #2b568c',
-                letterSpacing: '0.5px',
+                letterSpacing: '0.6px',
                 textTransform: 'uppercase',
-                background: isActive ? '#132f54' : 'transparent',
-                color: isActive ? '#ffffff' : '#dbeafe',
-                outline: isActive ? '1px solid #3b71b8' : 'none',
-                transition: 'background-color 0.1s',
+                background: isActive ? '#15345d' : 'transparent',
+                color: isActive ? '#ffffff' : '#bfdbfe',
+                borderBottom: isActive ? '3px solid #60a5fa' : '3px solid transparent',
+                transition: 'all 0.15s ease',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',

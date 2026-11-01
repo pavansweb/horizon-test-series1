@@ -38,6 +38,7 @@
   let testData = null;
   let currentQuestion = 1;
   let activeSubjectId = '';
+  let activePaletteFilter = 'all'; // 'all' or subjectId ('physics', 'chemistry', 'mathematics')
   let selectedOption = null;
   let candidateResponses = {}; // qNum -> { selectedOption, status, visited }
   let timeRemaining = 180 * 60;
@@ -198,33 +199,70 @@
 
   // Subject Tabs
   function renderSubjectTabs() {
-    if (!testData || !testData.subjects) return;
+    if (!testData) return;
     elSubjectTabs.innerHTML = '';
 
-    testData.subjects.forEach((sub) => {
+    // 1. "ALL QUESTIONS" Tab (Replaces JUT90 NEET)
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.textContent = 'ALL QUESTIONS';
+    allBtn.className = 'subject-tab-btn';
+    const isAllActive = activePaletteFilter === 'all';
+
+    allBtn.style.padding = '8px 18px';
+    allBtn.style.fontSize = '12px';
+    allBtn.style.fontWeight = '700';
+    allBtn.style.cursor = 'pointer';
+    allBtn.style.border = 'none';
+    allBtn.style.borderRight = '1px solid #2b568c';
+    allBtn.style.letterSpacing = '0.6px';
+    allBtn.style.textTransform = 'uppercase';
+    allBtn.style.background = isAllActive ? '#15345d' : 'transparent';
+    allBtn.style.color = isAllActive ? '#ffffff' : '#bfdbfe';
+    allBtn.style.borderBottom = isAllActive ? '3px solid #60a5fa' : '3px solid transparent';
+    allBtn.style.whiteSpace = 'nowrap';
+    allBtn.style.transition = 'all 0.15s ease';
+
+    allBtn.onclick = () => {
+      activePaletteFilter = 'all';
+      renderSubjectTabs();
+      renderPalette();
+    };
+
+    elSubjectTabs.appendChild(allBtn);
+
+    // 2. Individual Subject Tabs (Physics, Chemistry, Mathematics)
+    (testData.subjects || []).forEach((sub) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = sub.name;
       btn.className = 'subject-tab-btn';
-      const isActive = sub.id === activeSubjectId;
+      const isSubActive = activePaletteFilter === sub.id;
 
-      btn.style.padding = '7px 18px';
-      btn.style.fontSize = '11px';
+      btn.style.padding = '8px 18px';
+      btn.style.fontSize = '12px';
       btn.style.fontWeight = '700';
       btn.style.cursor = 'pointer';
       btn.style.border = 'none';
       btn.style.borderRight = '1px solid #2b568c';
-      btn.style.letterSpacing = '0.5px';
+      btn.style.letterSpacing = '0.6px';
       btn.style.textTransform = 'uppercase';
-      btn.style.background = isActive ? '#132f54' : 'transparent';
-      btn.style.color = isActive ? '#ffffff' : '#dbeafe';
-      btn.style.outline = isActive ? '1px solid #3b71b8' : 'none';
+      btn.style.background = isSubActive ? '#15345d' : 'transparent';
+      btn.style.color = isSubActive ? '#ffffff' : '#bfdbfe';
+      btn.style.borderBottom = isSubActive ? '3px solid #60a5fa' : '3px solid transparent';
       btn.style.whiteSpace = 'nowrap';
+      btn.style.transition = 'all 0.15s ease';
 
       btn.onclick = () => {
+        activePaletteFilter = sub.id;
         activeSubjectId = sub.id;
         renderSubjectTabs();
-        navigateToQuestion(sub.startQuestion);
+        // If current question is outside this subject, navigate to its start question
+        if (currentQuestion < sub.startQuestion || currentQuestion > sub.endQuestion) {
+          navigateToQuestion(sub.startQuestion);
+        } else {
+          renderPalette();
+        }
       };
 
       elSubjectTabs.appendChild(btn);
@@ -248,13 +286,14 @@
       candidateResponses[qNum] = { selectedOption: null, status: 'not_answered', visited: true };
     }
 
-    // Update active subject if needed
+    // Update active subject and palette filter if needed
     for (const sub of testData.subjects || []) {
       if (qNum >= sub.startQuestion && qNum <= sub.endQuestion) {
-        if (sub.id !== activeSubjectId) {
-          activeSubjectId = sub.id;
-          renderSubjectTabs();
+        activeSubjectId = sub.id;
+        if (activePaletteFilter !== 'all' && activePaletteFilter !== sub.id) {
+          activePaletteFilter = sub.id;
         }
+        renderSubjectTabs();
         break;
       }
     }
@@ -355,7 +394,7 @@
     elBtnSaveMark.style.color = selectedOption ? '#ffffff' : '#9e9e9e';
   }
 
-  // Render 9-Column Question Palette with section line-breaks (e.g. 26 starts on new row)
+  // Render 9-Column Question Palette with section line-breaks and subject filtering
   function renderPalette() {
     if (!testData) return;
     elPaletteGrid.innerHTML = '';
@@ -364,6 +403,7 @@
     let sections = [];
     if (testData.subjects && testData.subjects.length > 0) {
       sections = testData.subjects.map((s) => ({
+        id: s.id,
         name: s.name,
         start: s.startQuestion,
         end: s.endQuestion,
@@ -372,10 +412,17 @@
       const totalQ = testData.totalQuestions || 75;
       for (let s = 1; s <= totalQ; s += 25) {
         sections.push({
+          id: `sec_${s}`,
+          name: `Section`,
           start: s,
           end: Math.min(s + 24, totalQ),
         });
       }
+    }
+
+    // Filter to specific subject if activePaletteFilter is not 'all'
+    if (activePaletteFilter !== 'all') {
+      sections = sections.filter((s) => s.id === activePaletteFilter);
     }
 
     sections.forEach((sec, secIdx) => {
