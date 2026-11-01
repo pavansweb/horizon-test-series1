@@ -267,8 +267,14 @@ def api_admin_gemini_parse_paper():
     import urllib.request
     import json
 
-    api_key = os.environ.get('GEMINI_API_KEY')
-    if not api_key:
+    # Load primary and backup Gemini API keys for seamless rotation
+    raw_keys = [
+        os.environ.get('GEMINI_API_KEY'),
+        os.environ.get('GEMINI_BACKUP_API_KEY'),
+        *(os.environ.get('GEMINI_API_KEYS', '').split(','))
+    ]
+    unique_keys = [k.strip() for k in dict.fromkeys(raw_keys) if k and k.strip()]
+    if not unique_keys:
         return jsonify({'success': False, 'error': 'GEMINI_API_KEY environment variable is not configured.'}), 500
     pdf_base64 = ''
 
@@ -379,24 +385,31 @@ Critical Instructions:
     }).encode('utf-8')
 
     last_error = None
-    for model in models:
-        try:
-            req = urllib.request.Request(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-                data=payload,
-                headers={"Content-Type": "application/json"}
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                res_data = json.loads(resp.read().decode('utf-8'))
-                if "candidates" in res_data and len(res_data["candidates"]) > 0:
-                    raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                    cleaned = raw_text.replace("```json", "").replace("```", "").strip()
-                    parsed = json.loads(cleaned)
-                    return jsonify({"success": True, "modelUsed": model, "data": parsed})
-        except Exception as e:
-            last_error = str(e)
+    for key_idx, active_key in enumerate(unique_keys):
+        key_hit_rate_limit = False
+        for model in models:
+            try:
+                req = urllib.request.Request(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={active_key}",
+                    data=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    res_data = json.loads(resp.read().decode('utf-8'))
+                    if "candidates" in res_data and len(res_data["candidates"]) > 0:
+                        raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                        cleaned = raw_text.replace("```json", "").replace("```", "").strip()
+                        parsed = json.loads(cleaned)
+                        return jsonify({"success": True, "modelUsed": model, "keyIndexUsed": key_idx + 1, "data": parsed})
+            except Exception as e:
+                last_error = str(e)
+                if '429' in last_error or 'quota' in last_error.lower() or 'resource_exhausted' in last_error.lower():
+                    key_hit_rate_limit = True
+                    break
+        if key_hit_rate_limit and key_idx < len(unique_keys) - 1:
+            continue
 
-    return jsonify({"success": False, "error": f"Gemini analysis failed: {last_error}"}), 502
+    return jsonify({"success": False, "error": f"Gemini analysis failed across all configured keys: {last_error}"}), 502
 
 @app.route('/api/admin/tests/<test_id>', methods=['DELETE'])
 @admin_required

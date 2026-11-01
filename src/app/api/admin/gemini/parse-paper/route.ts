@@ -20,8 +20,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  // Load primary and backup Gemini API keys for seamless failover & rate limit mitigation
+  const apiKeys: string[] = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_BACKUP_API_KEY,
+    ...(process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',') : []),
+  ]
+    .map((k) => k?.trim())
+    .filter((k): k is string => Boolean(k && k.length > 0));
+
+  const uniqueKeys = Array.from(new Set(apiKeys));
+
+  if (uniqueKeys.length === 0) {
     return NextResponse.json(
       { success: false, error: 'GEMINI_API_KEY is not configured in environment variables.' },
       { status: 500 }
@@ -137,55 +147,74 @@ Critical Instructions:
 
 6. Return ONLY clean, raw JSON matching the schema above.`;
 
-    let lastError = null;
+    let lastError: string | null = null;
 
-    // Try available Gemini models with fallback
-    for (const model of GEMINI_MODELS) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inline_data: {
-                      mime_type: 'application/pdf',
-                      data: pdfBase64,
+    // Loop through available API keys and models with automatic rotation on rate limits / quota exhaustion
+    for (let keyIdx = 0; keyIdx < uniqueKeys.length; keyIdx++) {
+      const activeKey = uniqueKeys[keyIdx];
+      let keyHitRateLimit = false;
+
+      for (const model of GEMINI_MODELS) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    {
+                      inline_data: {
+                        mime_type: 'application/pdf',
+                        data: pdfBase64,
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
+              ],
+              generationConfig: {
+                response_mime_type: 'application/json',
+                temperature: 0.1,
               },
-            ],
-            generationConfig: {
-              response_mime_type: 'application/json',
-              temperature: 0.1,
-            },
-          }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-          const rawText = data.candidates[0].content.parts[0].text;
-          const cleanedText = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-          const parsed = JSON.parse(cleanedText);
-
-          return NextResponse.json({
-            success: true,
-            modelUsed: model,
-            data: parsed,
+            }),
           });
-        } else {
-          lastError = data.error?.message || `Model ${model} returned status ${response.status}`;
-          console.warn(`Gemini model ${model} failed, trying next:`, lastError);
+
+          const data = await response.json();
+
+          if (response.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+            const rawText = data.candidates[0].content.parts[0].text;
+            const cleanedText = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+            const parsed = JSON.parse(cleanedText);
+
+            return NextResponse.json({
+              success: true,
+              modelUsed: model,
+              keyIndexUsed: keyIdx + 1,
+              totalKeysConfigured: uniqueKeys.length,
+              data: parsed,
+            });
+          } else {
+            const errMsg = data.error?.message || `Model ${model} returned status ${response.status}`;
+            lastError = errMsg;
+            const isRateLimit = response.status === 429 || /quota|rate\s*limit|resource_exhausted/i.test(errMsg);
+            console.warn(`Gemini model ${model} (Key #${keyIdx + 1}) failed: ${errMsg}`);
+
+            if (isRateLimit) {
+              keyHitRateLimit = true;
+              console.warn(`Gemini Key #${keyIdx + 1} hit rate limit / quota, rotating to backup key if available...`);
+              break; // Switch to the next API key immediately
+            }
+          }
+        } catch (err: unknown) {
+          lastError = (err as Error)?.message || 'Network error';
+          console.warn(`Error with ${model} on Key #${keyIdx + 1}:`, err);
         }
-      } catch (err: unknown) {
-        lastError = (err as Error)?.message;
-        console.warn(`Error with ${model}:`, err);
+      }
+
+      if (keyHitRateLimit && keyIdx < uniqueKeys.length - 1) {
+        continue;
       }
     }
 
