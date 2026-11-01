@@ -134,38 +134,18 @@ Open [http://localhost:3000](http://localhost:3000) in your browser:
 
 ### Option 2: Deploy with Supabase (Free Database + Storage)
 
-1. Create a free account at [supabase.com](https://supabase.com) and create a new project.
-2. Go to **Storage -> New Bucket**, name it `jee-question-papers`, and set it to **Public**.
-3. In SQL Editor, create the tables:
-   ```sql
-   create table if not exists jee_tests (
-     id text primary key,
-     title text not null,
-     duration integer not null,
-     totalMarks integer not null,
-     pdfUrl text not null,
-     pdfFileName text not null,
-     subjects jsonb not null,
-     markingScheme jsonb not null,
-     answerKey jsonb not null,
-     status text not null,
-     createdAt text not null,
-     updatedAt text not null
-   );
-
-   create table if not exists jee_submissions (
-     submissionId text primary key,
-     testId text not null,
-     data jsonb not null,
-     createdAt text not null
-   );
-   ```
-4. In your Vercel Project Settings, add the environment variables:
-   - `SUPABASE_URL`: `https://your-project-ref.supabase.co`
-   - `SUPABASE_SERVICE_ROLE_KEY`: `your-service-role-key`
-   - `SUPABASE_BUCKET`: `jee-question-papers`
-   - `ADMIN_PASSWORD`: Your chosen admin password.
+1. Open your Supabase project (e.g. `https://supabase.com/dashboard/project/xdfpixytkjneiedexhfk`).
+2. Go to **SQL Editor** on the left menu.
+3. Open [`supabase_schema.sql`](supabase_schema.sql) in this repository, copy its entire contents, paste it into the SQL Editor, and click **Run**.
+   - This creates `jee_tests` and `jee_submissions` tables with RLS policies.
+   - It sets up the `jee-question-papers` public storage bucket.
+   - It automatically seeds the initial 75-question JEE Main 2026 Full Syllabus Mock Test!
+4. In your Vercel Project Settings (**Settings -> Environment Variables**), add:
+   - `NEXT_PUBLIC_SUPABASE_URL`: `https://xdfpixytkjneiedexhfk.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: `sb_publishable_uHfcoUDYpPqHxJldoiBsfQ_8G5xKnhH`
+   - `ADMIN_PASSWORD`: Your chosen admin password (e.g. `jee2026admin`).
    - `SESSION_SECRET`: A random 32+ character string.
+5. Deploy or Redeploy on Vercel!
 
 ---
 

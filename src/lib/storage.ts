@@ -1,10 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { supabase, isSupabaseConfigured } from './supabase';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'jee-question-papers';
-
 const VERCEL_BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 /**
@@ -47,26 +45,27 @@ export async function savePdf(
   }
 
   // 2. Try Supabase Storage if configured
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      const uploadUrl = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/${SUPABASE_BUCKET}/${finalFilename}`;
-      
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': contentType,
-          'x-upsert': 'true',
-        },
-        body: new Uint8Array(buffer),
-      });
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(finalFilename, buffer, {
+          contentType,
+          upsert: true,
+        });
 
-      if (response.ok) {
-        // Return the public URL
-        return `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/${SUPABASE_BUCKET}/${finalFilename}`;
+      if (!error && data) {
+        const { data: publicData } = supabase.storage
+          .from(SUPABASE_BUCKET)
+          .getPublicUrl(finalFilename);
+
+        if (publicData?.publicUrl) {
+          return publicData.publicUrl;
+        }
       }
-      console.warn('Supabase storage upload returned non-200:', await response.text());
+      if (error) {
+        console.warn('Supabase storage upload error, falling back:', error.message);
+      }
     } catch (err) {
       console.warn('Supabase storage error, falling back:', err);
     }
@@ -87,6 +86,19 @@ export async function savePdf(
 export async function deletePdf(pdfUrl: string): Promise<void> {
   if (!pdfUrl) return;
 
+  // Supabase storage file
+  if (isSupabaseConfigured && supabase && pdfUrl.includes(SUPABASE_BUCKET)) {
+    try {
+      const parts = pdfUrl.split(`${SUPABASE_BUCKET}/`);
+      if (parts[1]) {
+        await supabase.storage.from(SUPABASE_BUCKET).remove([parts[1]]);
+      }
+    } catch (err) {
+      console.warn('Supabase storage delete error:', err);
+    }
+    return;
+  }
+
   // If local upload:
   if (pdfUrl.startsWith('/uploads/')) {
     const filename = pdfUrl.replace('/uploads/', '');
@@ -99,5 +111,17 @@ export async function deletePdf(pdfUrl: string): Promise<void> {
     return;
   }
 
-  // Cloud deletion can be added here if needed
+  // If Vercel Blob
+  if (VERCEL_BLOB_TOKEN && pdfUrl.includes('blob.vercel-storage.com')) {
+    try {
+      await fetch(pdfUrl, {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${VERCEL_BLOB_TOKEN}`,
+        },
+      });
+    } catch (err) {
+      console.warn('Vercel Blob delete error:', err);
+    }
+  }
 }

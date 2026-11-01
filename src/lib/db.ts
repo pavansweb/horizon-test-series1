@@ -2,13 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { Test, PublicTest, TestResult } from './types';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const TESTS_FILE = path.join(DATA_DIR, 'tests.json');
 const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // In-memory cache for fast reads during active test sessions
 let submissionsCache: Record<string, TestResult> | null = null;
@@ -28,38 +26,7 @@ async function ensureDataFiles(): Promise<void> {
   }
 }
 
-/**
- * Reads all tests from storage (Supabase or Local JSON)
- */
-export async function getAllTests(includeDrafts: boolean = false): Promise<Test[]> {
-  // If Supabase configured:
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-    try {
-      let queryUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_tests?select=*`;
-      if (!includeDrafts) {
-        queryUrl += '&status=eq.published';
-      }
-      queryUrl += '&order=createdAt.desc';
-
-      const res = await fetch(queryUrl, {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      });
-
-      if (res.ok) {
-        const rows = await res.json();
-        return rows as Test[];
-      }
-    } catch (err) {
-      console.warn('Supabase DB fetch error, falling back to local file:', err);
-    }
-  }
-
-  // Local file storage
+async function getLocalTests(includeDrafts: boolean = false): Promise<Test[]> {
   await ensureDataFiles();
   try {
     const raw = await fs.readFile(TESTS_FILE, 'utf-8');
@@ -73,31 +40,70 @@ export async function getAllTests(includeDrafts: boolean = false): Promise<Test[
   }
 }
 
+async function saveTestLocally(test: Test): Promise<void> {
+  await ensureDataFiles();
+  const tests = await getLocalTests(true);
+  const index = tests.findIndex((t) => t.id === test.id);
+  if (index >= 0) {
+    tests[index] = test;
+  } else {
+    tests.unshift(test);
+  }
+  await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
+}
+
+/**
+ * Reads all tests from storage (Supabase or Local JSON)
+ */
+export async function getAllTests(includeDrafts: boolean = false): Promise<Test[]> {
+  // If Supabase configured:
+  if (isSupabaseConfigured && supabase) {
+    try {
+      let query = supabase.from('jee_tests').select('*').order('createdAt', { ascending: false });
+      if (!includeDrafts) {
+        query = query.eq('status', 'published');
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data as Test[];
+      }
+      if (error) {
+        console.warn('Supabase DB fetch error, falling back to local file:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase DB fetch error, falling back to local file:', err);
+    }
+  }
+
+  // Local file storage fallback
+  return getLocalTests(includeDrafts);
+}
+
 /**
  * Gets a test by ID (including full answer key for grading & admin)
  */
 export async function getTestById(id: string): Promise<Test | null> {
-  // If Supabase configured:
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      const queryUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_tests?id=eq.${id}&select=*`;
-      const res = await fetch(queryUrl, {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        cache: 'no-store',
-      });
-      if (res.ok) {
-        const rows = await res.json();
-        if (rows && rows.length > 0) return rows[0] as Test;
+      const { data, error } = await supabase
+        .from('jee_tests')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as Test;
+      }
+      if (error) {
+        console.warn('Supabase DB error fetching test:', error.message);
       }
     } catch (err) {
       console.warn('Supabase DB error fetching test:', err);
     }
   }
 
-  const tests = await getAllTests(true);
+  const tests = await getLocalTests(true);
   return tests.find((t) => t.id === id) || null;
 }
 
@@ -122,7 +128,7 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
     pdfFileName: test.pdfFileName,
     subjects: test.subjects,
     markingScheme: test.markingScheme,
-    totalQuestions: totalQuestions || 90,
+    totalQuestions: totalQuestions || 75,
     status: test.status,
     createdAt: test.createdAt,
   };
@@ -145,33 +151,28 @@ export async function createTest(
   };
 
   // Supabase:
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_tests`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(newTest),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        if (saved && saved[0]) return saved[0] as Test;
+      const { data: saved, error } = await supabase
+        .from('jee_tests')
+        .insert(newTest)
+        .select()
+        .maybeSingle();
+
+      if (!error && saved) {
+        await saveTestLocally(saved as Test);
+        return saved as Test;
+      }
+      if (error) {
+        console.warn('Supabase DB insert error, saving to local file:', error.message);
       }
     } catch (err) {
       console.warn('Supabase DB insert error, saving to local file:', err);
     }
   }
 
-  // Local JSON:
-  await ensureDataFiles();
-  const tests = await getAllTests(true);
-  tests.unshift(newTest);
-  await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
-
+  // Local JSON fallback:
+  await saveTestLocally(newTest);
   return newTest;
 }
 
@@ -188,59 +189,48 @@ export async function updateTest(id: string, updates: Partial<Test>): Promise<Te
     updatedAt: new Date().toISOString(),
   };
 
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_tests?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(updatedTest),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        if (saved && saved[0]) return saved[0] as Test;
+      const { data: saved, error } = await supabase
+        .from('jee_tests')
+        .update(updatedTest)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+
+      if (!error && saved) {
+        await saveTestLocally(saved as Test);
+        return saved as Test;
+      }
+      if (error) {
+        console.warn('Supabase DB update error, saving to local file:', error.message);
       }
     } catch (err) {
       console.warn('Supabase DB update error, saving to local file:', err);
     }
   }
 
-  await ensureDataFiles();
-  const tests = await getAllTests(true);
-  const index = tests.findIndex((t) => t.id === id);
-  if (index !== -1) {
-    tests[index] = updatedTest;
-    await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
-    return updatedTest;
-  }
-
-  return null;
+  await saveTestLocally(updatedTest);
+  return updatedTest;
 }
 
 /**
  * Deletes a test
  */
 export async function deleteTest(id: string): Promise<boolean> {
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_tests?id=eq.${id}`, {
-        method: 'DELETE',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-      });
+      const { error } = await supabase.from('jee_tests').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase delete error:', error.message);
+      }
     } catch (err) {
       console.warn('Supabase delete error:', err);
     }
   }
 
   await ensureDataFiles();
-  const tests = await getAllTests(true);
+  const tests = await getLocalTests(true);
   const filtered = tests.filter((t) => t.id !== id);
   await fs.writeFile(TESTS_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
   return true;
@@ -250,22 +240,18 @@ export async function deleteTest(id: string): Promise<boolean> {
  * Saves candidate test submission & result
  */
 export async function saveSubmission(result: TestResult): Promise<void> {
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_submissions`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          submissionId: result.submissionId,
-          testId: result.testId,
-          data: result,
-          createdAt: result.submittedAt,
-        }),
+      const { error } = await supabase.from('jee_submissions').upsert({
+        submissionId: result.submissionId,
+        testId: result.testId,
+        data: result,
+        createdAt: result.submittedAt,
       });
+
+      if (error) {
+        console.warn('Supabase saveSubmission error:', error.message);
+      }
     } catch (err) {
       console.warn('Supabase saveSubmission error:', err);
     }
@@ -291,21 +277,19 @@ export async function getSubmissionById(submissionId: string): Promise<TestResul
     return submissionsCache[submissionId];
   }
 
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (isSupabaseConfigured && supabase) {
     try {
-      const res = await fetch(
-        `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/jee_submissions?submissionId=eq.${submissionId}&select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          cache: 'no-store',
-        }
-      );
-      if (res.ok) {
-        const rows = await res.json();
-        if (rows && rows.length > 0) return rows[0].data as TestResult;
+      const { data, error } = await supabase
+        .from('jee_submissions')
+        .select('data')
+        .eq('submissionId', submissionId)
+        .maybeSingle();
+
+      if (!error && data?.data) {
+        const res = data.data as TestResult;
+        if (!submissionsCache) submissionsCache = {};
+        submissionsCache[submissionId] = res;
+        return res;
       }
     } catch (err) {
       console.warn('Supabase getSubmissionById error:', err);
