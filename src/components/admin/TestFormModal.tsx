@@ -474,7 +474,7 @@ export function TestFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-xs select-none">
       <div
-        className={`bg-white rounded-lg shadow-2xl transition-all duration-200 border border-gray-300 overflow-hidden flex flex-col h-[94vh] max-h-[94vh] ${
+        className={`bg-white dark:bg-slate-900 rounded-lg shadow-2xl transition-all duration-200 border border-gray-300 dark:border-slate-800 overflow-hidden flex flex-col h-[94vh] max-h-[94vh] text-slate-900 dark:text-slate-100 ${
           showPdfSidebar ? 'w-[98vw] max-w-7xl' : 'w-full max-w-3xl'
         }`}
       >
@@ -530,14 +530,14 @@ export function TestFormModal({
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50 px-4 pt-2 gap-2 text-xs font-bold flex-shrink-0">
+        <div className="flex border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 pt-2 gap-2 text-xs font-bold flex-shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('details')}
             className={`pb-2 px-3 border-b-2 cursor-pointer transition-all ${
               activeTab === 'details'
-                ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             1. Test Details &amp; PDF
@@ -547,8 +547,8 @@ export function TestFormModal({
             onClick={() => setActiveTab('subjects')}
             className={`pb-2 px-3 border-b-2 cursor-pointer transition-all flex items-center gap-1.5 ${
               activeTab === 'subjects'
-                ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             2. Shuffle Subjects ({subjectOrder.map((s) => s.name[0]).join('→')})
@@ -558,8 +558,8 @@ export function TestFormModal({
             onClick={() => setActiveTab('answers')}
             className={`pb-2 px-3 border-b-2 cursor-pointer transition-all ${
               activeTab === 'answers'
-                ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             3. Answer Key ({Object.keys(answerKey).length}/{totalQuestions})
@@ -583,11 +583,11 @@ export function TestFormModal({
         {/* Split Container: Left = Form / Right = Side-by-Side Live PDF Viewer */}
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left Column: Form Controls */}
-          <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden bg-white">
+          <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden bg-white dark:bg-slate-900">
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs sm:text-sm">
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 font-medium text-xs">
+                  <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300 font-medium text-xs">
                     {error}
                   </div>
                 )}
@@ -596,7 +596,7 @@ export function TestFormModal({
                 {activeTab === 'details' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block font-bold text-gray-700 mb-1">
+                      <label className="block font-bold text-gray-700 dark:text-slate-300 mb-1">
                         Test Title <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -605,13 +605,13 @@ export function TestFormModal({
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="e.g. JEE Main 2026 Session 1 - Full Syllabus"
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                        className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block font-bold text-gray-700 mb-1">
+                        <label className="block font-bold text-gray-700 dark:text-slate-300 mb-1">
                           Duration (Minutes)
                         </label>
                         <input
@@ -620,35 +620,35 @@ export function TestFormModal({
                           max={600}
                           value={duration}
                           onChange={(e) => setDuration(parseInt(e.target.value, 10) || 180)}
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                          className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                         />
-                        <span className="text-[11px] text-gray-500">Standard JEE Main: 180 mins (3 hours)</span>
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400">Standard JEE Main: 180 mins (3 hours)</span>
                       </div>
 
                       <div>
-                        <label className="block font-bold text-gray-700 mb-1">
+                        <label className="block font-bold text-gray-700 dark:text-slate-300 mb-1">
                           Maximum Marks (Auto-calculated)
                         </label>
-                        <div className="w-full p-2 border border-blue-200 bg-blue-50/60 rounded text-xs sm:text-sm font-bold text-blue-900 flex items-center justify-between">
+                        <div className="w-full p-2 border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/40 rounded text-xs sm:text-sm font-bold text-blue-900 dark:text-blue-300 flex items-center justify-between">
                           <span>{autoTotalMarks} Marks</span>
-                          <span className="text-[11px] font-medium text-blue-700">
+                          <span className="text-[11px] font-medium text-blue-700 dark:text-blue-400">
                             ({totalQuestions} Qs × {markingCorrect} marks)
                           </span>
                         </div>
-                        <span className="text-[11px] text-gray-500">Auto-set from questions count &amp; marking scheme</span>
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400">Auto-set from questions count &amp; marking scheme</span>
                       </div>
                     </div>
 
                     {/* Google Gemini AI Auto-Formatting Banner */}
-                    <div className="p-3 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border border-indigo-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="p-3 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 dark:from-indigo-950/40 dark:via-purple-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-900 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="font-bold text-xs sm:text-sm text-indigo-950 flex items-center gap-1.5">
+                        <div className="font-bold text-xs sm:text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
                           <span>✨ Google Gemini AI Auto-Formatting</span>
-                          <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
                             Fast &amp; Accurate
                           </span>
                         </div>
-                        <p className="text-[11px] text-indigo-700 mt-0.5">
+                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">
                           Let Gemini analyze your PDF to auto-detect title, subject order (Chem/Phy/Math), and extract answers!
                         </p>
                       </div>
@@ -674,13 +674,13 @@ export function TestFormModal({
 
                     {/* PDF Upload */}
                     <div>
-                      <label className="block font-bold text-gray-700 mb-1">
+                      <label className="block font-bold text-gray-700 dark:text-slate-300 mb-1">
                         Question Paper PDF {!isEditing && <span className="text-red-500">*</span>}
                       </label>
 
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-5 text-center cursor-pointer transition-all bg-gray-50 hover:bg-blue-50/40"
+                        className="border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-blue-500 rounded-lg p-5 text-center cursor-pointer transition-all bg-gray-50 dark:bg-slate-800/40 hover:bg-blue-50/40 dark:hover:bg-slate-800"
                       >
                         <input
                           type="file"
@@ -693,15 +693,15 @@ export function TestFormModal({
                           }}
                           className="hidden"
                         />
-                        <UploadIcon className="w-8 h-8 text-gray-400 mx-auto mb-1" />
-                        <span className="text-xs font-bold text-blue-700 block mb-0.5">
+                        <UploadIcon className="w-8 h-8 text-gray-400 dark:text-slate-500 mx-auto mb-1" />
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400 block mb-0.5">
                           {pdfFile
                             ? pdfFile.name
                             : isEditing
                             ? `Keep existing: ${testToEdit?.pdfFileName || 'Current PDF'}`
                             : 'Click to select Question Paper PDF'}
                         </span>
-                        <span className="text-[11px] text-gray-500">
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400">
                           {pdfFile
                             ? `${(pdfFile.size / (1024 * 1024)).toFixed(2)} MB • Preview active on right side`
                             : 'Standard PDF format • Live preview opens automatically'}
@@ -710,19 +710,19 @@ export function TestFormModal({
                     </div>
 
                     {/* PDF Page Range Selection */}
-                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                    <div className="p-3 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+                        <span className="text-xs font-bold text-gray-800 dark:text-slate-200 uppercase tracking-wide">
                           Page Range for Students (1 to N)
                         </span>
-                        <span className="text-[11px] text-blue-700 font-semibold">
+                        <span className="text-[11px] text-blue-700 dark:text-blue-400 font-semibold">
                           Active: Page {pdfStartPage} to {pdfEndPage || (totalPdfPages ? `${totalPdfPages} (All)` : 'End')}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 bg-white p-2.5 rounded border border-gray-200">
+                      <div className="grid grid-cols-2 gap-3 bg-white dark:bg-slate-900 p-2.5 rounded border border-gray-200 dark:border-slate-800">
                         <div>
-                          <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
+                          <label className="block font-bold text-gray-700 dark:text-slate-300 text-[11px] mb-0.5">
                             Start Page
                           </label>
                           <input
@@ -734,14 +734,14 @@ export function TestFormModal({
                               setPdfStartPage(v);
                               setPreviewPage(v);
                             }}
-                            className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                            className="w-full p-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs focus:ring-1 focus:ring-blue-500"
                             placeholder="1"
                           />
-                          <span className="text-[10px] text-gray-400">Default: 1</span>
+                          <span className="text-[10px] text-gray-400 dark:text-slate-500">Default: 1</span>
                         </div>
 
                         <div>
-                          <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
+                          <label className="block font-bold text-gray-700 dark:text-slate-300 text-[11px] mb-0.5">
                             End Page (N)
                           </label>
                           <input
@@ -752,17 +752,17 @@ export function TestFormModal({
                               const v = e.target.value ? parseInt(e.target.value, 10) : undefined;
                               setPdfEndPage(v);
                             }}
-                            className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                            className="w-full p-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs focus:ring-1 focus:ring-blue-500"
                             placeholder={totalPdfPages ? `${totalPdfPages} (All)` : 'All pages (N)'}
                           />
-                          <span className="text-[10px] text-gray-400">Leave blank for all pages</span>
+                          <span className="text-[10px] text-gray-400 dark:text-slate-500">Leave blank for all pages</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Publication Status */}
                     <div>
-                      <label className="block font-bold text-gray-700 mb-1">Publish Status</label>
+                      <label className="block font-bold text-gray-700 dark:text-slate-300 mb-1">Publish Status</label>
                       <div className="flex items-center gap-4">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -772,7 +772,7 @@ export function TestFormModal({
                             checked={status === 'published'}
                             onChange={() => setStatus('published')}
                           />
-                          <span className="font-semibold text-green-700">Published (Visible to students)</span>
+                          <span className="font-semibold text-green-700 dark:text-green-400">Published (Visible to students)</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -782,7 +782,7 @@ export function TestFormModal({
                             checked={status === 'draft'}
                             onChange={() => setStatus('draft')}
                           />
-                          <span className="font-semibold text-gray-600">Draft (Hidden)</span>
+                          <span className="font-semibold text-gray-600 dark:text-slate-400">Draft (Hidden)</span>
                         </label>
                       </div>
                     </div>
@@ -793,42 +793,42 @@ export function TestFormModal({
                 {activeTab === 'subjects' && (
                   <div className="space-y-4">
                     {/* Subject Shuffling Box */}
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-200 dark:border-slate-800 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
-                          <h3 className="font-bold text-gray-800 text-xs sm:text-sm flex items-center gap-1.5">
+                          <h3 className="font-bold text-gray-800 dark:text-slate-200 text-xs sm:text-sm flex items-center gap-1.5">
                             <span>🔀 Subject Sequence &amp; Shuffling</span>
                           </h3>
-                          <p className="text-[11px] text-gray-500">
+                          <p className="text-[11px] text-gray-500 dark:text-slate-400">
                             Reorder to match the PDF question paper sequence (e.g. Chemistry first, Physics first, etc.)
                           </p>
                         </div>
-                        <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded self-start sm:self-auto">
+                        <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded self-start sm:self-auto border border-blue-200 dark:border-blue-900">
                           Total: {totalQuestions} Questions
                         </span>
                       </div>
 
                       {/* Quick Preset Buttons */}
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-[11px] font-bold text-gray-600 mr-1">Quick Presets:</span>
+                        <span className="text-[11px] font-bold text-gray-600 dark:text-slate-400 mr-1">Quick Presets:</span>
                         <button
                           type="button"
                           onClick={() => applyPresetOrder('cpm')}
-                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded shadow-2xs transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded shadow-2xs transition-colors cursor-pointer"
                         >
                           🧪 Chemistry → ⚡ Physics → 📐 Math
                         </button>
                         <button
                           type="button"
                           onClick={() => applyPresetOrder('pcm')}
-                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 rounded shadow-2xs transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded shadow-2xs transition-colors cursor-pointer"
                         >
                           ⚡ Physics → 🧪 Chemistry → 📐 Math
                         </button>
                         <button
                           type="button"
                           onClick={() => applyPresetOrder('mpc')}
-                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-purple-50 text-purple-800 border border-purple-300 rounded shadow-2xs transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-slate-700 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700 rounded shadow-2xs transition-colors cursor-pointer"
                         >
                           📐 Math → ⚡ Physics → 🧪 Chemistry
                         </button>
@@ -845,24 +845,24 @@ export function TestFormModal({
                           return (
                             <div
                               key={sub.id}
-                              className="bg-white p-3 rounded-lg border border-gray-300 shadow-2xs flex items-center justify-between gap-3 hover:border-blue-400 transition-all"
+                              className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-gray-300 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3 hover:border-blue-400 dark:hover:border-blue-500 transition-all"
                             >
                               {/* Left: Position & Subject Info */}
                               <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                <div className="w-7 h-7 rounded-full bg-slate-800 dark:bg-slate-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
                                   #{idx + 1}
                                 </div>
                                 <div>
-                                  <div className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-2">
+                                  <div className="font-bold text-xs sm:text-sm text-gray-900 dark:text-slate-100 flex items-center gap-2">
                                     <span>{sub.name}</span>
-                                    <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
                                       Q. {sub.startQuestion} to {sub.endQuestion}
                                     </span>
                                   </div>
-                                  <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
+                                  <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
                                     <span>MCQs: Q.{sub.startQuestion}–{intStart - 1}</span>
                                     <span>•</span>
-                                    <span className="text-amber-700 font-semibold">
+                                    <span className="text-amber-700 dark:text-amber-400 font-semibold">
                                       Integers: Q.{intStart}–{sub.endQuestion}
                                     </span>
                                   </div>
@@ -872,7 +872,7 @@ export function TestFormModal({
                               {/* Right: Question Count & Move Up / Down Buttons */}
                               <div className="flex items-center gap-2">
                                 <div className="flex items-center gap-1.5">
-                                  <label className="text-[11px] text-gray-500 font-medium">Questions:</label>
+                                  <label className="text-[11px] text-gray-500 dark:text-slate-400 font-medium">Questions:</label>
                                   <input
                                     type="number"
                                     min={1}
@@ -881,7 +881,7 @@ export function TestFormModal({
                                     onChange={(e) =>
                                       handleUpdateSubjectCount(sub.id, parseInt(e.target.value, 10) || 25)
                                     }
-                                    className="w-16 p-1 border border-gray-300 rounded text-xs text-center font-bold"
+                                    className="w-16 p-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs text-center font-bold"
                                   />
                                 </div>
 
@@ -891,7 +891,7 @@ export function TestFormModal({
                                     disabled={isFirst}
                                     onClick={() => handleMoveSubject(idx, 'up')}
                                     title="Move Up"
-                                    className="p-1.5 rounded border border-gray-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700"
+                                    className="p-1.5 rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700 dark:text-slate-200"
                                   >
                                     ▲
                                   </button>
@@ -900,7 +900,7 @@ export function TestFormModal({
                                     disabled={isLast}
                                     onClick={() => handleMoveSubject(idx, 'down')}
                                     title="Move Down"
-                                    className="p-1.5 rounded border border-gray-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700"
+                                    className="p-1.5 rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700 dark:text-slate-200"
                                   >
                                     ▼
                                   </button>
@@ -913,48 +913,48 @@ export function TestFormModal({
                     </div>
 
                     {/* Marking Scheme */}
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                      <h3 className="font-bold text-gray-800 text-xs sm:text-sm mb-3">
+                    <div className="bg-gray-50 dark:bg-slate-950 p-4 rounded-lg border border-gray-200 dark:border-slate-800">
+                      <h3 className="font-bold text-gray-800 dark:text-slate-200 text-xs sm:text-sm mb-3">
                         Marking Scheme Configuration
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-xs font-semibold text-green-700 mb-1">
+                          <label className="block text-xs font-semibold text-green-700 dark:text-green-400 mb-1">
                             Correct Answer Marks (+)
                           </label>
                           <input
                             type="number"
                             value={markingCorrect}
                             onChange={(e) => setMarkingCorrect(parseInt(e.target.value, 10) || 4)}
-                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                            className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs"
                           />
-                          <span className="text-[10px] text-gray-500">Default: +4</span>
+                          <span className="text-[10px] text-gray-500 dark:text-slate-400">Default: +4</span>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-red-600 mb-1">
+                          <label className="block text-xs font-semibold text-red-600 dark:text-red-400 mb-1">
                             Incorrect Answer Marks (-)
                           </label>
                           <input
                             type="number"
                             value={markingIncorrect}
                             onChange={(e) => setMarkingIncorrect(parseInt(e.target.value, 10) || -1)}
-                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                            className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs"
                           />
-                          <span className="text-[10px] text-gray-500">Default: -1</span>
+                          <span className="text-[10px] text-gray-500 dark:text-slate-400">Default: -1</span>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-slate-400 mb-1">
                             Unattempted Marks
                           </label>
                           <input
                             type="number"
                             value={markingUnattempted}
                             onChange={(e) => setMarkingUnattempted(parseInt(e.target.value, 10) || 0)}
-                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                            className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs"
                           />
-                          <span className="text-[10px] text-gray-500">Default: 0</span>
+                          <span className="text-[10px] text-gray-500 dark:text-slate-400">Default: 0</span>
                         </div>
                       </div>
                     </div>
@@ -965,10 +965,10 @@ export function TestFormModal({
                 {activeTab === 'answers' && (
                   <div className="space-y-3">
                     {pdfPreviewUrl && (
-                      <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded text-xs">
+                      <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs">
                         <div className="flex items-center gap-2 truncate">
-                          <span className="font-bold text-slate-700">Question Paper:</span>
-                          <span className="text-slate-500 truncate max-w-xs">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Question Paper:</span>
+                          <span className="text-slate-500 dark:text-slate-400 truncate max-w-xs">
                             {pdfFile?.name || testToEdit?.pdfFileName || 'PDF Attached'}
                           </span>
                         </div>
@@ -985,7 +985,7 @@ export function TestFormModal({
                             type="button"
                             onClick={handleScanPdfForAnswers}
                             disabled={isScanningPdf}
-                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                            className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                           >
                             🔍 {isScanningPdf ? 'Scanning...' : 'In-Browser Scan'}
                           </button>
@@ -994,7 +994,7 @@ export function TestFormModal({
                     )}
 
                     {scanStatus && (
-                      <div className="p-2 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded text-xs font-semibold">
+                      <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 rounded text-xs font-semibold">
                         {scanStatus}
                       </div>
                     )}
@@ -1010,7 +1010,7 @@ export function TestFormModal({
               </div>
 
               {/* Modal Footer Controls */}
-              <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-shrink-0">
+              <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex items-center justify-between flex-shrink-0">
                 <div>
                   {activeTab !== 'details' && (
                     <button
@@ -1019,7 +1019,7 @@ export function TestFormModal({
                         if (activeTab === 'answers') setActiveTab('subjects');
                         else if (activeTab === 'subjects') setActiveTab('details');
                       }}
-                      className="px-3 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
+                      className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 font-medium text-xs cursor-pointer rounded"
                     >
                       ← Previous Step
                     </button>
@@ -1030,7 +1030,7 @@ export function TestFormModal({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
+                    className="px-4 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 font-medium text-xs cursor-pointer rounded"
                   >
                     Cancel
                   </button>
@@ -1079,9 +1079,9 @@ export function TestFormModal({
 
           {/* Right Column: Live PDF Preview Side-by-Side Panel */}
           {showPdfSidebar && (
-            <div className="w-[46%] lg:w-[48%] border-l border-gray-200 bg-slate-100 flex flex-col overflow-hidden">
+            <div className="w-[46%] lg:w-[48%] border-l border-gray-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden">
               {/* PDF Toolbar */}
-              <div className="p-2 bg-slate-800 text-white flex items-center justify-between text-xs flex-shrink-0">
+              <div className="p-2 bg-slate-800 dark:bg-slate-900 text-white flex items-center justify-between text-xs flex-shrink-0 border-b border-slate-700">
                 <div className="flex items-center gap-2">
                   <span className="font-bold flex items-center gap-1.5">
                     📄 Live PDF Preview
@@ -1172,7 +1172,7 @@ export function TestFormModal({
               </div>
 
               {/* PDF Preview Frame or Empty State */}
-              <div className="flex-1 overflow-hidden relative bg-slate-200 flex flex-col">
+              <div className="flex-1 overflow-hidden relative bg-slate-200 dark:bg-slate-900 flex flex-col">
                 {pdfPreviewUrl ? (
                   <iframe
                     key={`${pdfPreviewUrl}-${previewPage}`}
@@ -1183,13 +1183,13 @@ export function TestFormModal({
                 ) : (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 hover:text-blue-600 cursor-pointer transition-colors bg-slate-50 border-2 border-dashed border-slate-300 m-3 rounded-lg"
+                    className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 dark:text-slate-400 hover:text-blue-600 cursor-pointer transition-colors bg-slate-50 dark:bg-slate-900/60 border-2 border-dashed border-slate-300 dark:border-slate-700 m-3 rounded-lg"
                   >
-                    <UploadIcon className="w-12 h-12 text-slate-400 mb-2" />
-                    <span className="font-bold text-sm text-slate-700 mb-1">
+                    <UploadIcon className="w-12 h-12 text-slate-400 dark:text-slate-500 mb-2" />
+                    <span className="font-bold text-sm text-slate-700 dark:text-slate-200 mb-1">
                       No Question Paper PDF Loaded
                     </span>
-                    <p className="text-xs text-slate-500 max-w-xs mb-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mb-3">
                       Select or drop a question paper PDF on the left. The live preview will appear right here side-by-side!
                     </p>
                     <span className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">

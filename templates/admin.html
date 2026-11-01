@@ -122,6 +122,26 @@
       </span>
     </div>
     <div style="display: flex; align-items: center; gap: 12px;">
+      <!-- Dark / Light Theme Toggle Button -->
+      <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark/Light Mode" style="width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+        <!-- Sun icon (shown when in dark mode) -->
+        <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none; color: #f59e0b;">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <!-- Moon icon (shown when in light mode) -->
+        <svg id="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block; color: #475569;">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+
       <a href="/" target="_blank" style="font-size: 12px; font-weight: 700; color: #1e4273; text-decoration: none;">
         View Live Site &nearr;
       </a>
@@ -987,6 +1007,36 @@
       } catch (err) {
         alert('Failed to upload PDF');
       }
+    }
+    // Theme toggle logic
+    function applyTheme(theme) {
+      const isDark = theme === 'dark';
+      if (isDark) {
+        document.body.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.body.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+      const iconSun = document.getElementById('theme-icon-sun');
+      const iconMoon = document.getElementById('theme-icon-moon');
+      if (iconSun && iconMoon) {
+        iconSun.style.display = isDark ? 'block' : 'none';
+        iconMoon.style.display = isDark ? 'none' : 'block';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('cbt_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(savedTheme);
+
+    const toggleBtn = document.getElementById('theme-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+        const newTheme = isDark ? 'light' : 'dark';
+        applyTheme(newTheme);
+        localStorage.setItem('cbt_theme', newTheme);
+      };
     }
   </script>
 </body>

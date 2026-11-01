@@ -141,31 +141,38 @@ html.dark .nta-exam-ui {
 }
 
 .outer-canvas-wrap {
-  padding: 10px 16px 14px 64px !important;
+  padding: 12px 20px 16px 90px !important;
 }
 
 @media (min-width: 1280px) {
   .outer-canvas-wrap {
-    padding-left: 76px !important;
-    padding-right: 20px !important;
+    padding-left: 110px !important;
+    padding-right: 24px !important;
   }
 }
 
 @media (min-width: 1600px) {
   .outer-canvas-wrap {
-    padding-left: 96px !important;
-    padding-right: 24px !important;
+    padding-left: 140px !important;
+    padding-right: 32px !important;
+  }
+}
+
+@media (min-width: 1900px) {
+  .outer-canvas-wrap {
+    padding-left: 160px !important;
+    padding-right: 40px !important;
   }
 }
 
 html.dark .outer-canvas-wrap {
-  background: #0a0f1d !important;
+  background: #090d16 !important;
 }
 
 html.dark .big-box-wrap {
   background: #1e293b !important;
   border-color: #334155 !important;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
 }
 
 html.dark .left-col-wrap {
@@ -177,9 +184,25 @@ html.dark .palette-wrap {
   border-left-color: #334155 !important;
 }
 
+html.dark .nta-pdf-root {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
 html.dark .pdf-header-bar {
   background: #1e293b !important;
   border-bottom-color: #334155 !important;
+}
+
+html.dark .pdf-scroll-box {
+  background: #0a0f1d !important;
+  border-color: #334155 !important;
+}
+
+html.dark .btn-zoom {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
 }
 
 html.dark .question-num-text {

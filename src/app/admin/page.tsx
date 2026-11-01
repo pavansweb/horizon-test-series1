@@ -26,6 +26,41 @@ export default function AdminDashboardPage() {
   const [testToEdit, setTestToEdit] = useState<Test | null>(null);
   const [testForPdfReplace, setTestForPdfReplace] = useState<Test | null>(null);
 
+  // Theme state (Dark Mode)
+  const [isDark, setIsDark] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cbt_theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const shouldBeDark = saved === 'dark' || (!saved && prefersDark);
+      setIsDark(shouldBeDark);
+      if (shouldBeDark) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    if (next) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('cbt_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('cbt_theme', 'light');
+    }
+  };
+
   const fetchTests = useCallback(async () => {
     try {
       setLoading(true);
@@ -120,25 +155,51 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 font-sans pb-12">
+    <div className="min-h-screen bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans pb-12 transition-colors">
       {/* Top Navigation */}
-      <header className="bg-[#1e3a8a] text-white border-b border-blue-900 shadow-sm py-3.5 px-4 sm:px-6">
+      <header className="bg-[#1e3a8a] dark:bg-slate-900 text-white border-b border-blue-900 dark:border-slate-800 shadow-sm py-3.5 px-4 sm:px-6 transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-white text-[#1e3a8a] font-black flex items-center justify-center text-sm">
+            <div className="w-8 h-8 rounded bg-white dark:bg-blue-600 text-[#1e3a8a] dark:text-white font-black flex items-center justify-center text-sm shadow-xs">
               NTA
             </div>
             <div>
-              <h1 className="font-extrabold text-base sm:text-lg leading-tight">
+              <h1 className="font-extrabold text-base sm:text-lg leading-tight text-white">
                 JEE Main Test Administration
               </h1>
-              <p className="text-[11px] text-blue-200">
-                Manage Question Papers, PDFs & Answer Keys
+              <p className="text-[11px] text-blue-200 dark:text-slate-400">
+                Manage Question Papers, PDFs &amp; Answer Keys
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-1.5 rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all flex items-center justify-center cursor-pointer"
+              title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            >
+              {isDark ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+
             <Link
               href="/"
               className="text-xs px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20 transition-all font-semibold"
@@ -158,10 +219,10 @@ export default function AdminDashboardPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
         {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-lg border border-gray-200 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs transition-colors">
           <div>
-            <h2 className="font-bold text-lg text-gray-900">Configured Test Papers</h2>
-            <p className="text-xs text-gray-500">
+            <h2 className="font-bold text-lg text-gray-900 dark:text-slate-100">Configured Test Papers</h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               {tests.length} {tests.length === 1 ? 'test paper' : 'test papers'} available
             </p>
           </div>
@@ -169,7 +230,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => fetchTests()}
-              className="p-2 border border-gray-300 rounded hover:bg-gray-50 text-gray-600 cursor-pointer"
+              className="p-2 border border-gray-300 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors"
               title="Refresh list"
             >
               <RefreshCwIcon className="w-4 h-4" />
@@ -189,25 +250,25 @@ export default function AdminDashboardPage() {
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
             {error}
           </div>
         )}
 
         {/* Loading State */}
         {loading ? (
-          <div className="p-12 text-center bg-white rounded-lg border border-gray-200">
+          <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800">
             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <span className="text-sm text-gray-600 font-medium">Loading test papers...</span>
+            <span className="text-sm text-gray-600 dark:text-slate-300 font-medium">Loading test papers...</span>
           </div>
         ) : tests.length === 0 ? (
           /* Empty State */
-          <div className="p-12 text-center bg-white rounded-lg border border-dashed border-gray-300">
-            <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+          <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-dashed border-gray-300 dark:border-slate-800">
+            <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
               <UploadIcon className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-base text-gray-800 mb-1">No JEE Mock Tests Uploaded Yet</h3>
-            <p className="text-xs text-gray-500 max-w-md mx-auto mb-4">
+            <h3 className="font-bold text-base text-gray-800 dark:text-slate-200 mb-1">No JEE Mock Tests Uploaded Yet</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 max-w-md mx-auto mb-4">
               Upload a JEE Main question paper PDF, configure the answer key, and publish it to immediately start practicing.
             </p>
             <button
@@ -223,11 +284,11 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           /* Tests Table */
-          <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
             <div className="overflow-x-auto">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-700 font-bold border-b border-gray-200">
+                  <tr className="bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-200 font-bold border-b border-gray-200 dark:border-slate-700">
                     <th className="p-3">Test Title</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-center">Duration</th>
@@ -244,10 +305,10 @@ export default function AdminDashboardPage() {
                     const isFullyKeyed = filledAnswers >= totalQ;
 
                     return (
-                      <tr key={test.id} className="border-b border-gray-100 hover:bg-gray-50/70 font-medium">
-                        <td className="p-3 font-bold text-gray-900">
+                      <tr key={test.id} className="border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50/70 dark:hover:bg-slate-800/40 font-medium transition-colors">
+                        <td className="p-3 font-bold text-gray-900 dark:text-slate-100">
                           <div>{test.title}</div>
-                          <div className="text-[11px] text-gray-400 font-normal truncate max-w-xs">
+                          <div className="text-[11px] text-gray-400 dark:text-slate-500 font-normal truncate max-w-xs">
                             PDF: {test.pdfFileName}
                           </div>
                         </td>
@@ -258,8 +319,8 @@ export default function AdminDashboardPage() {
                             onClick={() => handleTogglePublish(test.id)}
                             className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer border ${
                               test.status === 'published'
-                                ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
-                                : 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200'
+                                ? 'bg-green-100 dark:bg-emerald-950/60 text-green-800 dark:text-emerald-400 border-green-200 dark:border-emerald-800 hover:bg-green-200 dark:hover:bg-emerald-900'
+                                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900'
                             }`}
                             title="Click to toggle publish status"
                           >
@@ -267,13 +328,13 @@ export default function AdminDashboardPage() {
                           </button>
                         </td>
 
-                        <td className="p-3 text-center font-mono text-gray-700">
+                        <td className="p-3 text-center font-mono text-gray-700 dark:text-slate-300">
                           {test.duration} mins
                         </td>
 
                         <td className="p-3 text-center">
-                          <span className="font-bold text-blue-900">{totalQ}</span>
-                          <span className="text-[10px] text-gray-500 block">
+                          <span className="font-bold text-blue-900 dark:text-blue-400">{totalQ}</span>
+                          <span className="text-[10px] text-gray-500 dark:text-slate-400 block">
                             (P:{test.subjects.find((s) => s.id === 'physics')?.totalQuestions || 0}{' '}
                             C:{test.subjects.find((s) => s.id === 'chemistry')?.totalQuestions || 0}{' '}
                             M:{test.subjects.find((s) => s.id === 'mathematics')?.totalQuestions || 0})
@@ -284,15 +345,15 @@ export default function AdminDashboardPage() {
                           <span
                             className={`font-bold text-xs px-2 py-0.5 rounded ${
                               isFullyKeyed
-                                ? 'text-green-700 bg-green-50'
-                                : 'text-amber-700 bg-amber-50'
+                                ? 'text-green-700 dark:text-emerald-400 bg-green-50 dark:bg-emerald-950/50'
+                                : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
                             }`}
                           >
                             {filledAnswers}/{totalQ}
                           </span>
                         </td>
 
-                        <td className="p-3 text-center text-[11px] text-gray-500">
+                        <td className="p-3 text-center text-[11px] text-gray-500 dark:text-slate-400">
                           {new Date(test.createdAt).toLocaleDateString()}
                         </td>
 
@@ -302,7 +363,7 @@ export default function AdminDashboardPage() {
                             <Link
                               href={`/test/${test.id}`}
                               target="_blank"
-                              className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-all"
+                              className="p-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-400 rounded transition-all"
                               title="Take / Test CBT Interface"
                             >
                               <ExternalLinkIcon className="w-4 h-4" />
@@ -315,7 +376,7 @@ export default function AdminDashboardPage() {
                                 setTestToEdit(test);
                                 setIsCreateModalOpen(true);
                               }}
-                              className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-all cursor-pointer"
+                              className="p-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded transition-all cursor-pointer"
                               title="Edit Details & Answer Key"
                             >
                               <EditIcon className="w-4 h-4" />
@@ -325,7 +386,7 @@ export default function AdminDashboardPage() {
                             <button
                               type="button"
                               onClick={() => setTestForPdfReplace(test)}
-                              className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-all cursor-pointer"
+                              className="p-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded transition-all cursor-pointer"
                               title="Replace Question Paper PDF"
                             >
                               <UploadIcon className="w-4 h-4" />
@@ -335,7 +396,7 @@ export default function AdminDashboardPage() {
                             <button
                               type="button"
                               onClick={() => handleDeleteTest(test.id, test.title)}
-                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded transition-all cursor-pointer"
+                              className="p-1.5 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded transition-all cursor-pointer"
                               title="Delete Test"
                             >
                               <TrashIcon className="w-4 h-4" />

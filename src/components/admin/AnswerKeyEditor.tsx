@@ -218,16 +218,16 @@ export function AnswerKeyEditor({
   return (
     <div className="space-y-3 select-none">
       {/* Top Workflow Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-100 rounded-lg border border-slate-300">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-800">
         {/* Mode Switcher */}
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-md border border-slate-200">
+        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 p-1 rounded-md border border-slate-200 dark:border-slate-700">
           <button
             type="button"
             onClick={() => setEditorMode('smart_paste')}
             className={`px-3 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
               editorMode === 'smart_paste'
                 ? 'bg-blue-700 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
             ⚡ Smart Universal Paste
@@ -238,7 +238,7 @@ export function AnswerKeyEditor({
             className={`px-3 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
               editorMode === 'speed_tagger'
                 ? 'bg-blue-700 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
             ⌨️ Speed-Tagger (Rapid Entry)
@@ -249,7 +249,7 @@ export function AnswerKeyEditor({
             className={`px-3 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
               editorMode === 'matrix'
                 ? 'bg-blue-700 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
             📊 Grid Overview
@@ -261,8 +261,8 @@ export function AnswerKeyEditor({
           <span
             className={`text-xs font-bold px-2 py-0.5 rounded border ${
               filledAnswersCount === totalQuestions
-                ? 'bg-green-100 text-green-800 border-green-300'
-                : 'bg-amber-100 text-amber-800 border-amber-300'
+                ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-300 border-green-300 dark:border-green-800'
+                : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
             }`}
           >
             {filledAnswersCount} / {totalQuestions} Keyed ({Math.round((filledAnswersCount / totalQuestions) * 100)}%)
@@ -280,7 +280,7 @@ export function AnswerKeyEditor({
           <button
             type="button"
             onClick={() => fileUploadRef.current?.click()}
-            className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold rounded cursor-pointer transition-colors shadow-2xs"
+            className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-semibold rounded cursor-pointer transition-colors shadow-2xs"
             title="Upload CSV or text file"
           >
             📤 Upload CSV
@@ -289,7 +289,7 @@ export function AnswerKeyEditor({
           <button
             type="button"
             onClick={handleDownloadCsv}
-            className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold rounded cursor-pointer transition-colors shadow-2xs"
+            className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-semibold rounded cursor-pointer transition-colors shadow-2xs"
             title="Download blank or current CSV template"
           >
             📥 Template
@@ -308,18 +308,18 @@ export function AnswerKeyEditor({
 
       {/* MODE 1: SMART UNIVERSAL PASTE */}
       {editorMode === 'smart_paste' && (
-        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg space-y-2.5">
+        <div className="p-3 bg-blue-50/70 dark:bg-slate-900 border border-blue-200 dark:border-slate-800 rounded-lg space-y-2.5">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
+              <span className="text-xs font-extrabold text-blue-950 dark:text-blue-300 uppercase tracking-wide">
                 Universal Multi-Format Smart Paste
               </span>
-              <p className="text-[11px] text-blue-700">
+              <p className="text-[11px] text-blue-700 dark:text-slate-400">
                 Paste copied tables from PDFs, websites, WhatsApp, or Excel. Multi-column tables &amp; (1)-(4) options are auto-detected.
               </p>
             </div>
             {liveParseResult.filledCount > 0 && (
-              <span className="text-[11px] font-bold bg-white text-blue-800 px-2 py-0.5 rounded border border-blue-300">
+              <span className="text-[11px] font-bold bg-white dark:bg-slate-800 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-300 dark:border-slate-700">
                 Format: {liveParseResult.detectedFormat} | {liveParseResult.filledCount} Parsed
               </span>
             )}
@@ -330,12 +330,12 @@ export function AnswerKeyEditor({
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}
             placeholder={`Paste ANY format here, e.g.:\n- Multi-column: 1 A 26 B 51 C ...\n- Numbered: 1: (2), 2: (4), 21: 15 ...\n- Excel: Copy columns directly and paste\n- Sequence: A B C D A B C ...`}
-            className="w-full text-xs font-mono p-2.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 bg-white shadow-inner"
+            className="w-full text-xs font-mono p-2.5 border border-blue-300 dark:border-slate-700 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-inner"
           />
 
           {/* Quick Format Help Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
-            <span className="font-semibold text-blue-900">Try Quick Examples:</span>
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+            <span className="font-semibold text-blue-900 dark:text-blue-300">Try Quick Examples:</span>
             <button
               type="button"
               onClick={() =>
@@ -343,7 +343,7 @@ export function AnswerKeyEditor({
                   '1 A 26 B 51 C\n2 B 27 C 52 D\n3 C 28 A 53 A\n21 5 45 12 70 -2.5'
                 )
               }
-              className="px-1.5 py-0.5 bg-white hover:bg-blue-100 rounded border border-blue-200 text-blue-800 cursor-pointer"
+              className="px-1.5 py-0.5 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 rounded border border-blue-200 dark:border-slate-700 text-blue-800 dark:text-blue-300 cursor-pointer"
             >
               Multi-column Table
             </button>
@@ -354,7 +354,7 @@ export function AnswerKeyEditor({
                   '1: (1), 2: (3), 3: (2), 4: (4), 21: 45, 22: -1.5'
                 )
               }
-              className="px-1.5 py-0.5 bg-white hover:bg-blue-100 rounded border border-blue-200 text-blue-800 cursor-pointer"
+              className="px-1.5 py-0.5 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 rounded border border-blue-200 dark:border-slate-700 text-blue-800 dark:text-blue-300 cursor-pointer"
             >
               Option Numbers: (1), (2), (3), (4)
             </button>
@@ -370,7 +370,7 @@ export function AnswerKeyEditor({
                   }).join(', ')
                 )
               }
-              className="px-1.5 py-0.5 bg-white hover:bg-blue-100 rounded border border-blue-200 text-blue-800 cursor-pointer"
+              className="px-1.5 py-0.5 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 rounded border border-blue-200 dark:border-slate-700 text-blue-800 dark:text-blue-300 cursor-pointer"
             >
               Fill All {totalQuestions}
             </button>
@@ -378,8 +378,8 @@ export function AnswerKeyEditor({
 
           {/* Live Preview Chips */}
           {liveParseResult.filledCount > 0 && (
-            <div className="p-2 bg-white rounded border border-blue-200 text-xs">
-              <span className="font-bold text-slate-700 block mb-1">
+            <div className="p-2 bg-white dark:bg-slate-800 rounded border border-blue-200 dark:border-slate-700 text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                 Live Preview (First 8 parsed):
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -388,13 +388,13 @@ export function AnswerKeyEditor({
                   .map(([q, val]) => (
                     <span
                       key={q}
-                      className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded font-mono text-[11px]"
+                      className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono text-[11px] text-slate-800 dark:text-slate-200"
                     >
                       <strong>Q.{q}:</strong> {val}
                     </span>
                   ))}
                 {liveParseResult.filledCount > 8 && (
-                  <span className="text-slate-400 text-[11px] self-center">
+                  <span className="text-slate-400 dark:text-slate-500 text-[11px] self-center">
                     +{liveParseResult.filledCount - 8} more...
                   </span>
                 )}
@@ -408,14 +408,14 @@ export function AnswerKeyEditor({
               type="button"
               onClick={handleApplyParsed}
               disabled={liveParseResult.filledCount === 0}
-              className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs rounded transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+              className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold text-xs rounded transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
             >
               <CheckCircleIcon className="w-3.5 h-3.5" />
               Apply {liveParseResult.filledCount} Parsed Answers to Test
             </button>
 
             {appliedNotice && (
-              <span className="text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+              <span className="text-xs font-bold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/80 px-2 py-1 rounded border border-green-200 dark:border-green-800">
                 {appliedNotice}
               </span>
             )}
@@ -425,23 +425,23 @@ export function AnswerKeyEditor({
 
       {/* MODE 2: SPEED-TAGGER (ZERO-MOUSE RAPID KEYBOARD ENTRY) */}
       {editorMode === 'speed_tagger' && (
-        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-200 rounded-lg space-y-3">
-          <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-slate-900 dark:to-indigo-950/30 border border-blue-200 dark:border-slate-800 rounded-lg space-y-3">
+          <div className="flex items-center justify-between border-b border-blue-200 dark:border-slate-800 pb-2">
             <div>
-              <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
+              <span className="text-xs font-extrabold text-blue-950 dark:text-blue-300 uppercase tracking-wide">
                 Speed-Tagger: Rapid Keyboard Entry Mode
               </span>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
                 Type directly on your keyboard to instantly tag answers &amp; auto-advance. Zero mouse required!
               </p>
             </div>
             {/* Quick Question Selector */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-700">Jump:</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jump:</span>
               <select
                 value={taggerQ}
                 onChange={(e) => setTaggerQ(parseInt(e.target.value, 10))}
-                className="text-xs p-1 border border-slate-300 rounded bg-white font-bold"
+                className="text-xs p-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold"
               >
                 {Array.from({ length: totalQuestions }, (_, i) => i + 1).map((q) => (
                   <option key={q} value={q}>
@@ -453,19 +453,19 @@ export function AnswerKeyEditor({
           </div>
 
           {/* Focused Question Card */}
-          <div className="bg-white p-4 rounded-xl border-2 border-blue-500 shadow-sm flex flex-col items-center justify-center space-y-3">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border-2 border-blue-500 dark:border-blue-600 shadow-sm flex flex-col items-center justify-center space-y-3">
             <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold text-blue-900">
+              <span className="text-xl font-extrabold text-blue-900 dark:text-blue-300">
                 Question {taggerQ} of {totalQuestions}
               </span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300">
+              <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
                 {taggerSubject.name}
               </span>
               <span
                 className={`text-xs font-bold px-2 py-0.5 rounded border ${
                   taggerIsInt
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                    : 'bg-blue-100 text-blue-800 border-blue-300'
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                    : 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
                 }`}
               >
                 {taggerIsInt ? 'Numerical Value' : 'MCQ (1-4)'}
@@ -477,17 +477,17 @@ export function AnswerKeyEditor({
               /* Integer Type Speed Entry */
               <div className="flex flex-col items-center gap-2 w-full max-w-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-slate-700">Answer:</span>
+                  <span className="font-bold text-sm text-slate-700 dark:text-slate-300">Answer:</span>
                   <input
                     ref={taggerInputRef}
                     type="text"
                     value={taggerCurrentVal}
                     onChange={(e) => handleSetNumeric(taggerQ, e.target.value)}
                     placeholder="Type number & press Enter"
-                    className="p-2 border-2 border-blue-600 rounded-lg text-lg font-bold w-48 text-center bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="p-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg text-lg font-bold w-48 text-center bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
                   />
                 </div>
-                <span className="text-[11px] text-slate-500 font-medium">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                   Press <strong>Enter</strong> to save &amp; jump to next question
                 </span>
               </div>
@@ -509,36 +509,36 @@ export function AnswerKeyEditor({
                         }}
                         className={`w-16 h-14 rounded-xl flex flex-col items-center justify-center font-bold transition-all cursor-pointer shadow-xs ${
                           isSelected
-                            ? 'bg-blue-700 text-white border-2 border-blue-900 scale-105 shadow-md'
-                            : 'bg-white hover:bg-blue-50 text-slate-800 border-2 border-slate-300'
+                            ? 'bg-blue-700 text-white border-2 border-blue-900 dark:border-blue-400 scale-105 shadow-md'
+                            : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-2 border-slate-300 dark:border-slate-700'
                         }`}
                       >
                         <span className="text-lg">{opt}</span>
-                        <span className={`text-[10px] ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
+                        <span className={`text-[10px] ${isSelected ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
                           Key: {numKey}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                <span className="text-[11px] text-slate-500 font-medium block">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">
                   Press <strong>1, 2, 3, 4</strong> (or <strong>A, B, C, D</strong>) on your keyboard to advance
                 </span>
               </div>
             )}
 
             {/* Stepper Navigation */}
-            <div className="flex items-center justify-between w-full max-w-sm pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between w-full max-w-sm pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 disabled={taggerQ <= 1}
                 onClick={() => setTaggerQ((prev) => prev - 1)}
-                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded text-xs font-bold text-slate-700 flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 rounded text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 cursor-pointer"
               >
                 <ChevronLeftIcon className="w-3.5 h-3.5" /> Prev (←)
               </button>
 
-              <span className="text-xs font-semibold text-slate-500">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {taggerCurrentVal ? `Set: ${taggerCurrentVal}` : 'Unanswered'}
               </span>
 
@@ -546,7 +546,7 @@ export function AnswerKeyEditor({
                 type="button"
                 disabled={taggerQ >= totalQuestions}
                 onClick={() => setTaggerQ((prev) => prev + 1)}
-                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded text-xs font-bold text-slate-700 flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 rounded text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 cursor-pointer"
               >
                 Next (→) <ChevronRightIcon className="w-3.5 h-3.5" />
               </button>
@@ -558,7 +558,7 @@ export function AnswerKeyEditor({
       {/* MODE 3: FULL GRID OVERVIEW (Always accessible or active) */}
       <div className="space-y-2">
         {/* Subject Tabs */}
-        <div className="flex items-center gap-1 border-b border-gray-200">
+        <div className="flex items-center gap-1 border-b border-gray-200 dark:border-slate-800">
           {subjects.map((s) => {
             const isActive = s.id === activeSubjectTab;
             let subFilled = 0;
@@ -574,7 +574,7 @@ export function AnswerKeyEditor({
                 className={`px-3 py-1.5 text-xs font-bold rounded-t transition-all flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-blue-700 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>{s.name}</span>
@@ -587,7 +587,7 @@ export function AnswerKeyEditor({
         </div>
 
         {/* Interactive Answer Matrix Grid */}
-        <div className="max-h-[260px] overflow-y-auto p-2 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="max-h-[260px] overflow-y-auto p-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {subjectQuestions.map((qNum) => {
               const currentOpt = answerKey[qNum];
@@ -597,13 +597,15 @@ export function AnswerKeyEditor({
                 <div
                   key={qNum}
                   className={`p-2 rounded border flex items-center justify-between text-xs transition-all ${
-                    currentOpt ? 'bg-white border-blue-300 shadow-2xs' : 'bg-gray-100/70 border-gray-200'
+                    currentOpt
+                      ? 'bg-white dark:bg-slate-900 border-blue-300 dark:border-blue-900 shadow-2xs'
+                      : 'bg-gray-100/70 dark:bg-slate-900/40 border-gray-200 dark:border-slate-800'
                   }`}
                 >
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-gray-800">Q.{qNum}</span>
+                    <span className="font-bold text-gray-800 dark:text-slate-200">Q.{qNum}</span>
                     {isInt && (
-                      <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1 py-0.2 rounded border border-amber-300">
+                      <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-1 py-0.2 rounded border border-amber-300 dark:border-amber-800">
                         INT
                       </span>
                     )}
@@ -616,7 +618,7 @@ export function AnswerKeyEditor({
                         placeholder="Answer"
                         value={currentOpt || ''}
                         onChange={(e) => handleSetNumeric(qNum, e.target.value)}
-                        className="w-24 px-2 py-0.5 text-xs font-bold border border-blue-400 rounded focus:ring-1 focus:ring-blue-500 bg-white text-gray-900 text-center"
+                        className="w-24 px-2 py-0.5 text-xs font-bold border border-blue-400 dark:border-slate-700 rounded focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 text-center"
                       />
                     </div>
                   ) : (
@@ -631,7 +633,7 @@ export function AnswerKeyEditor({
                             className={`w-6 h-6 rounded font-bold text-xs transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-700 text-white shadow-xs scale-105'
-                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                                : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-300'
                             }`}
                           >
                             {opt}

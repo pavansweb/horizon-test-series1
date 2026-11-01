@@ -294,20 +294,27 @@ body.dark .theme-toggle-btn, [data-theme="dark"] .theme-toggle-btn {
 }
 
 .outer-canvas {
-  padding: 10px 16px 14px 64px !important;
+  padding: 12px 20px 16px 90px !important;
 }
 
 @media (min-width: 1280px) {
   .outer-canvas {
-    padding-left: 76px !important;
-    padding-right: 20px !important;
+    padding-left: 110px !important;
+    padding-right: 24px !important;
   }
 }
 
 @media (min-width: 1600px) {
   .outer-canvas {
-    padding-left: 96px !important;
-    padding-right: 24px !important;
+    padding-left: 140px !important;
+    padding-right: 32px !important;
+  }
+}
+
+@media (min-width: 1900px) {
+  .outer-canvas {
+    padding-left: 160px !important;
+    padding-right: 40px !important;
   }
 }
 
@@ -430,3 +437,75 @@ body.dark .card, [data-theme="dark"] .card {
   border-color: var(--card-border) !important;
   color: var(--text-main) !important;
 }
+
+/* Flask Admin Panel Dark Mode */
+body.dark .header-bar, [data-theme="dark"] .header-bar {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+}
+
+body.dark .header-bar h1, [data-theme="dark"] .header-bar h1 {
+  color: #60a5fa !important;
+}
+
+body.dark .section-box, [data-theme="dark"] .section-box {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45) !important;
+}
+
+body.dark .section-header, [data-theme="dark"] .section-header {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+}
+
+body.dark .section-header h2, [data-theme="dark"] .section-header h2 {
+  color: #f1f5f9 !important;
+}
+
+body.dark table th, [data-theme="dark"] table th {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+body.dark table td, [data-theme="dark"] table td {
+  border-bottom-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark .badge-draft, [data-theme="dark"] .badge-draft {
+  background: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+body.dark .badge-published, [data-theme="dark"] .badge-published {
+  background: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+body.dark .modal-box, [data-theme="dark"] .modal-box {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+}
+
+body.dark .modal-box h2, [data-theme="dark"] .modal-box h2 {
+  color: #f1f5f9 !important;
+}
+
+body.dark .form-row label, [data-theme="dark"] .form-row label {
+  color: #cbd5e1 !important;
+}
+
+body.dark .form-row input,
+body.dark .form-row select,
+body.dark .form-row textarea,
+[data-theme="dark"] .form-row input,
+[data-theme="dark"] .form-row select,
+[data-theme="dark"] .form-row textarea {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+

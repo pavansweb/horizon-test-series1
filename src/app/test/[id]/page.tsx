@@ -424,7 +424,7 @@ export default function TestAttemptPage({
           flexDirection: 'column',
           overflow: 'hidden',
           minHeight: 0,
-          padding: '10px 16px 14px 64px',
+          padding: '12px 20px 16px 90px',
           background: '#e9edf2',
         }}
       >
@@ -441,7 +441,7 @@ export default function TestAttemptPage({
             overflow: 'hidden',
             minHeight: 0,
             position: 'relative',
-            maxWidth: '1680px',
+            maxWidth: '1600px',
             width: '100%',
           }}
         >

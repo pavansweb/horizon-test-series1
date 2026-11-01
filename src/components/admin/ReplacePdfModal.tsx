@@ -73,7 +73,7 @@ export function ReplacePdfModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs select-none">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full border border-gray-300 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full border border-gray-300 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-slate-100">
         <div className="bg-[#1e3a8a] text-white px-5 py-3 flex items-center justify-between">
           <h2 className="font-bold text-base">Replace Question Paper PDF</h2>
           <button
@@ -86,14 +86,14 @@ export function ReplacePdfModal({
         </div>
 
         <div className="p-5 space-y-4">
-          <p className="text-xs text-gray-600">
-            Select a new question paper PDF for <strong>{testTitle}</strong>. The existing PDF will be safely replaced.
+          <p className="text-xs text-gray-600 dark:text-slate-400">
+            Select a new question paper PDF for <strong className="text-slate-900 dark:text-slate-200">{testTitle}</strong>. The existing PDF will be safely replaced.
           </p>
 
           {/* File Input Box */}
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-6 text-center cursor-pointer transition-all bg-gray-50 hover:bg-blue-50/50"
+            className="border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 rounded-lg p-6 text-center cursor-pointer transition-all bg-gray-50 dark:bg-slate-800/40 hover:bg-blue-50/50 dark:hover:bg-slate-800"
           >
             <input
               type="file"
@@ -102,26 +102,26 @@ export function ReplacePdfModal({
               onChange={handleFileChange}
               className="hidden"
             />
-            <UploadIcon className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-            <span className="text-xs font-bold text-blue-700 block mb-1">
+            <UploadIcon className="w-10 h-10 text-gray-400 dark:text-slate-500 mx-auto mb-2" />
+            <span className="text-xs font-bold text-blue-700 dark:text-blue-400 block mb-1">
               {selectedFile ? selectedFile.name : 'Click to select new PDF'}
             </span>
-            <span className="text-[11px] text-gray-500">
+            <span className="text-[11px] text-gray-500 dark:text-slate-400">
               {selectedFile
                 ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
                 : 'JEE Main Question Paper PDF'}
             </span>
           </div>
 
-          {error && <div className="text-xs text-red-600 font-medium">{error}</div>}
+          {error && <div className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</div>}
         </div>
 
-        <div className="bg-gray-100 px-5 py-3 border-t border-gray-300 flex items-center justify-end gap-2">
+        <div className="bg-gray-100 dark:bg-slate-950 px-5 py-3 border-t border-gray-300 dark:border-slate-800 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
             disabled={isUploading}
-            className="px-4 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
+            className="px-4 py-1.5 text-xs font-bold text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
           >
             Cancel
           </button>
@@ -130,7 +130,7 @@ export function ReplacePdfModal({
             type="button"
             onClick={handleUpload}
             disabled={isUploading || !selectedFile}
-            className="px-5 py-1.5 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:bg-gray-400 rounded transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+            className="px-5 py-1.5 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-slate-800 rounded transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
           >
             {isUploading ? (
               <>

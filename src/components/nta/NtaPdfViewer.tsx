@@ -137,9 +137,18 @@ export function NtaPdfViewer({
           const page = await pdf.getPage(pageNum);
           const viewport = page.getViewport({ scale: baseScale });
 
+          const isDark =
+            typeof document !== 'undefined' &&
+            (document.documentElement.classList.contains('dark') ||
+              document.documentElement.getAttribute('data-theme') === 'dark');
+
           const pageWrapper = document.createElement('div');
-          pageWrapper.style.margin = '0 auto 8px auto';
-          pageWrapper.style.boxShadow = '0 1px 3px rgba(0,0,0,0.18)';
+          pageWrapper.style.margin = '0 auto 10px auto';
+          pageWrapper.style.boxShadow = isDark
+            ? '0 4px 18px rgba(0,0,0,0.6)'
+            : '0 1px 4px rgba(0,0,0,0.18)';
+          pageWrapper.style.border = isDark ? '1px solid #334155' : '1px solid #cbd5e1';
+          pageWrapper.style.borderRadius = '3px';
           pageWrapper.style.backgroundColor = '#ffffff';
           pageWrapper.style.width = `${viewport.width}px`;
           pageWrapper.style.maxWidth = '860px';
@@ -232,31 +241,11 @@ export function NtaPdfViewer({
   const fallbackUrl = `${pdfUrl}#page=${firstPage}&toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
 
   return (
-    <div
-      className="w-full flex flex-col"
-      style={{
-        background: '#ffffff',
-        borderBottom: '1px solid #d1d5db',
-      }}
-    >
+    <div className="nta-pdf-root w-full flex flex-col bg-white dark:bg-slate-900 border-b border-gray-300 dark:border-slate-800">
       {/* Top Question Info & Circular Blue Scroll Arrows Bar */}
-      <div
-        className="pdf-header-bar flex items-center justify-between px-3 py-1.5"
-        style={{
-          borderBottom: '1px solid #e5e7eb',
-          background: '#ffffff',
-        }}
-      >
+      <div className="pdf-header-bar flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
         {/* Left: Question No : 1 */}
-        <div
-          className="question-num-text"
-          style={{
-            fontSize: '15.5px',
-            fontWeight: 700,
-            color: '#7f1d1d', // Authentic maroon-red question number from mock portal
-            fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-          }}
-        >
+        <div className="question-num-text text-[15.5px] font-bold text-[#7f1d1d] dark:text-red-400 font-sans">
           Question No : {currentQuestionNumber}
         </div>
 
@@ -322,34 +311,18 @@ export function NtaPdfViewer({
               type="button"
               onClick={() => setZoomLevel((z) => Math.max(50, z - 10))}
               title="Zoom out"
-              style={{
-                fontSize: '12px',
-                padding: '2px 7px',
-                border: '1px solid #d1d5db',
-                background: '#f8fafc',
-                borderRadius: '2px',
-                cursor: 'pointer',
-                color: '#475569',
-              }}
+              className="btn-zoom text-xs px-2 py-0.5 border border-gray-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded cursor-pointer"
             >
               -
             </button>
-            <span style={{ fontSize: '11px', color: '#64748b', minWidth: '32px', textAlign: 'center' }}>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 min-w-[32px] text-center font-mono font-semibold">
               {zoomLevel}%
             </span>
             <button
               type="button"
               onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
               title="Zoom in"
-              style={{
-                fontSize: '12px',
-                padding: '2px 7px',
-                border: '1px solid #d1d5db',
-                background: '#f8fafc',
-                borderRadius: '2px',
-                cursor: 'pointer',
-                color: '#475569',
-              }}
+              className="btn-zoom text-xs px-2 py-0.5 border border-gray-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded cursor-pointer"
             >
               +
             </button>
@@ -357,17 +330,14 @@ export function NtaPdfViewer({
         </div>
       </div>
 
-      {/* The Scrollable Embedded PDF Box (height ~380px matching 140% media) */}
+      {/* The Scrollable Embedded PDF Box */}
       <div
         ref={scrollContainerRef}
-        className="w-full overflow-y-auto overflow-x-auto relative"
+        className="pdf-scroll-box w-full overflow-y-auto overflow-x-auto relative bg-[#eef2f6] dark:bg-[#0b1120] border-t border-gray-200 dark:border-slate-800 p-2"
         style={{
           height: '380px',
           minHeight: '280px',
           maxHeight: '440px',
-          background: '#f8fafc',
-          borderTop: '1px solid #e5e7eb',
-          padding: '8px',
         }}
       >
         {loading && (
