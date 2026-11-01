@@ -179,6 +179,13 @@ def api_admin_create_test():
     pdf_start_page = int(request.form.get('pdfStartPage', 1)) if request.form.get('pdfStartPage') else 1
     pdf_end_page = int(request.form.get('pdfEndPage')) if request.form.get('pdfEndPage') else None
 
+    integer_questions = []
+    if request.form.get('integerQuestions'):
+        try:
+            integer_questions = json.loads(request.form.get('integerQuestions'))
+        except Exception:
+            integer_questions = []
+
     new_test = {
         'id': str(uuid.uuid4()),
         'title': title,
@@ -189,6 +196,7 @@ def api_admin_create_test():
         'pdfStartPage': pdf_start_page,
         'pdfEndPage': pdf_end_page,
         'subjects': subjects,
+        'integerQuestions': integer_questions,
         'markingScheme': marking_scheme,
         'answerKey': {},
         'status': status,

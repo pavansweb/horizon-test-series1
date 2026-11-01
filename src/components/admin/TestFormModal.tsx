@@ -13,6 +13,18 @@ interface TestFormModalProps {
   testToEdit?: Test | null;
 }
 
+export interface SubjectOrderItem {
+  id: string;
+  name: string;
+  count: number;
+}
+
+const DEFAULT_SUBJECT_ORDER: SubjectOrderItem[] = [
+  { id: 'physics', name: 'Physics', count: 25 },
+  { id: 'chemistry', name: 'Chemistry', count: 25 },
+  { id: 'mathematics', name: 'Mathematics', count: 25 },
+];
+
 export function TestFormModal({
   isOpen,
   onClose,
@@ -28,10 +40,13 @@ export function TestFormModal({
   const [pdfStartPage, setPdfStartPage] = useState<number>(1);
   const [pdfEndPage, setPdfEndPage] = useState<number | undefined>(undefined);
 
-  // Default JEE subjects (25 each = 75 questions)
-  const [physicsCount, setPhysicsCount] = useState<number>(25);
-  const [chemistryCount, setChemistryCount] = useState<number>(25);
-  const [mathCount, setMathCount] = useState<number>(25);
+  // Subject ordering state (allows shuffling: Chemistry first, Physics first, etc.)
+  const [subjectOrder, setSubjectOrder] = useState<SubjectOrderItem[]>(DEFAULT_SUBJECT_ORDER);
+
+  // Side-by-side live PDF preview state
+  const [showPdfSidebar, setShowPdfSidebar] = useState<boolean>(true);
+  const [previewPage, setPreviewPage] = useState<number>(1);
+  const [totalPdfPages, setTotalPdfPages] = useState<number | null>(null);
 
   // Marking Scheme
   const [markingCorrect, setMarkingCorrect] = useState<number>(4);
@@ -55,13 +70,57 @@ export function TestFormModal({
     if (pdfFile) {
       const url = URL.createObjectURL(pdfFile);
       setPdfPreviewUrl(url);
+      setPreviewPage(1);
       return () => URL.revokeObjectURL(url);
     } else if (testToEdit?.pdfUrl) {
       setPdfPreviewUrl(testToEdit.pdfUrl);
+      setPreviewPage(testToEdit.pdfStartPage || 1);
     } else {
       setPdfPreviewUrl(null);
     }
   }, [pdfFile, testToEdit]);
+
+  // Read total pages from PDF once preview URL is available
+  useEffect(() => {
+    const activeUrl = pdfPreviewUrl;
+    if (!activeUrl) {
+      setTotalPdfPages(null);
+      return;
+    }
+    let isCancelled = false;
+    async function getNumPages(targetUrl: string) {
+      try {
+        if (!window.pdfjsLib) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.onload = () => {
+              if (window.pdfjsLib) {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                resolve();
+              } else reject(new Error('PDF.js failed to load'));
+            };
+            script.onerror = () => reject(new Error('Failed to load PDF.js'));
+            document.head.appendChild(script);
+          });
+        }
+        const doc = await window.pdfjsLib!.getDocument({ url: targetUrl }).promise;
+        if (!isCancelled) {
+          setTotalPdfPages(doc.numPages);
+          if (!pdfEndPage && doc.numPages > 0) {
+            setPdfEndPage(doc.numPages);
+          }
+        }
+      } catch {
+        // Silently fallback if PDF.js fails to inspect
+      }
+    }
+    getNumPages(activeUrl);
+    return () => {
+      isCancelled = true;
+    };
+  }, [pdfPreviewUrl, pdfEndPage]);
 
   // Initialize form when testToEdit changes
   useEffect(() => {
@@ -77,13 +136,17 @@ export function TestFormModal({
       setMarkingIncorrect(testToEdit.markingScheme?.incorrect ?? -1);
       setMarkingUnattempted(testToEdit.markingScheme?.unattempted ?? 0);
 
-      const pSub = testToEdit.subjects.find((s) => s.id === 'physics');
-      const cSub = testToEdit.subjects.find((s) => s.id === 'chemistry');
-      const mSub = testToEdit.subjects.find((s) => s.id === 'mathematics');
-
-      if (pSub) setPhysicsCount(pSub.totalQuestions);
-      if (cSub) setChemistryCount(cSub.totalQuestions);
-      if (mSub) setMathCount(mSub.totalQuestions);
+      if (testToEdit.subjects && testToEdit.subjects.length > 0) {
+        setSubjectOrder(
+          testToEdit.subjects.map((s) => ({
+            id: s.id,
+            name: s.name,
+            count: s.totalQuestions,
+          }))
+        );
+      } else {
+        setSubjectOrder(DEFAULT_SUBJECT_ORDER);
+      }
       setPdfFile(null);
     } else {
       // Defaults for new test
@@ -91,9 +154,7 @@ export function TestFormModal({
       setDuration(180);
       setPdfStartPage(1);
       setPdfEndPage(undefined);
-      setPhysicsCount(25);
-      setChemistryCount(25);
-      setMathCount(25);
+      setSubjectOrder(DEFAULT_SUBJECT_ORDER);
       setMarkingCorrect(4);
       setMarkingIncorrect(-1);
       setMarkingUnattempted(0);
@@ -107,34 +168,87 @@ export function TestFormModal({
 
   if (!isOpen) return null;
 
-  // Build subject config dynamically from question counts
-  const subjects: SubjectConfig[] = [
-    {
-      id: 'physics',
-      name: 'Physics',
-      startQuestion: 1,
-      endQuestion: physicsCount,
-      totalQuestions: physicsCount,
-    },
-    {
-      id: 'chemistry',
-      name: 'Chemistry',
-      startQuestion: physicsCount + 1,
-      endQuestion: physicsCount + chemistryCount,
-      totalQuestions: chemistryCount,
-    },
-    {
-      id: 'mathematics',
-      name: 'Mathematics',
-      startQuestion: physicsCount + chemistryCount + 1,
-      endQuestion: physicsCount + chemistryCount + mathCount,
-      totalQuestions: mathCount,
-    },
-  ];
+  // Move subject up or down in sequence (shuffling)
+  const handleMoveSubject = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= subjectOrder.length) return;
+    const copy = [...subjectOrder];
+    const temp = copy[index];
+    copy[index] = copy[targetIndex];
+    copy[targetIndex] = temp;
+    setSubjectOrder(copy);
+  };
 
-  const totalQuestions = physicsCount + chemistryCount + mathCount;
-  // Automatically calculate maximum marks based on question count & correct marking scheme
+  // Preset subject order configurations
+  const applyPresetOrder = (preset: 'pcm' | 'cpm' | 'mpc' | 'pmc') => {
+    const findCount = (id: string, fallback: number = 25) =>
+      subjectOrder.find((s) => s.id === id)?.count || fallback;
+
+    if (preset === 'cpm') {
+      // Chemistry -> Physics -> Mathematics (Allen / Resonance format)
+      setSubjectOrder([
+        { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+        { id: 'physics', name: 'Physics', count: findCount('physics') },
+        { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+      ]);
+    } else if (preset === 'pcm') {
+      // Physics -> Chemistry -> Mathematics (Standard NTA format)
+      setSubjectOrder([
+        { id: 'physics', name: 'Physics', count: findCount('physics') },
+        { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+        { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+      ]);
+    } else if (preset === 'mpc') {
+      // Mathematics -> Physics -> Chemistry
+      setSubjectOrder([
+        { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+        { id: 'physics', name: 'Physics', count: findCount('physics') },
+        { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+      ]);
+    } else if (preset === 'pmc') {
+      // Physics -> Mathematics -> Chemistry
+      setSubjectOrder([
+        { id: 'physics', name: 'Physics', count: findCount('physics') },
+        { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+        { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+      ]);
+    }
+  };
+
+  const handleUpdateSubjectCount = (id: string, count: number) => {
+    setSubjectOrder((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, count: Math.max(1, count) } : s))
+    );
+  };
+
+  // Build sequential subject configs dynamically based on shuffled order
+  let runningQ = 1;
+  const subjects: SubjectConfig[] = subjectOrder.map((item) => {
+    const startQ = runningQ;
+    const endQ = runningQ + item.count - 1;
+    runningQ = endQ + 1;
+    return {
+      id: item.id,
+      name: item.name,
+      startQuestion: startQ,
+      endQuestion: endQ,
+      totalQuestions: item.count,
+    };
+  });
+
+  const totalQuestions = subjectOrder.reduce((acc, s) => acc + s.count, 0);
   const autoTotalMarks = totalQuestions * (Number(markingCorrect) || 4);
+
+  // Dynamically compute integer type questions based on the shuffled subjects
+  // (In JEE 25-Q format: last 5 questions of each subject are numerical/integer type)
+  const computedIntegerQuestions: number[] = [];
+  subjects.forEach((sub) => {
+    const intCount = sub.totalQuestions >= 30 ? 10 : 5;
+    const startInt = sub.endQuestion - intCount + 1;
+    for (let q = startInt; q <= sub.endQuestion; q++) {
+      computedIntegerQuestions.push(q);
+    }
+  });
 
   const handleScanPdfForAnswers = async () => {
     if (!pdfPreviewUrl) {
@@ -145,7 +259,6 @@ export function TestFormModal({
       setIsScanningPdf(true);
       setScanStatus('Scanning PDF pages for answer key...');
 
-      // Dynamic load of PDF.js from CDN if not already on window
       if (!window.pdfjsLib) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script');
@@ -165,8 +278,8 @@ export function TestFormModal({
       const doc = await window.pdfjsLib!.getDocument({ url: pdfPreviewUrl }).promise;
       let combinedText = '';
 
-      // Check the final 3 pages first (where answer keys typically reside)
-      const startScan = Math.max(1, doc.numPages - 3);
+      // Check the final 4 pages first (where answer keys typically reside)
+      const startScan = Math.max(1, doc.numPages - 4);
       for (let p = startScan; p <= doc.numPages; p++) {
         const page = (await doc.getPage(p)) as unknown as {
           getTextContent: () => Promise<{ items: Array<{ str?: string }> }>;
@@ -178,13 +291,13 @@ export function TestFormModal({
         combinedText += `\n ${pageStrings}`;
       }
 
-      const parsed = parseUniversalAnswerKey(combinedText, totalQuestions, testToEdit?.integerQuestions);
+      const parsed = parseUniversalAnswerKey(combinedText, totalQuestions, computedIntegerQuestions);
       if (parsed.filledCount >= 5) {
         setAnswerKey((prev) => ({ ...prev, ...parsed.answerKey }));
         setScanStatus(`Found and loaded ${parsed.filledCount} answers from PDF (${parsed.detectedFormat})!`);
         setActiveTab('answers');
       } else {
-        setScanStatus('No printed answer key detected in this PDF. Use Smart Paste or Speed-Tagger below.');
+        setScanStatus('No printed answer key detected in final pages. Use Smart Paste or Speed-Tagger.');
       }
     } catch (err) {
       console.warn('PDF answer scan error:', err);
@@ -231,6 +344,7 @@ export function TestFormModal({
             pdfStartPage: Number(pdfStartPage) || 1,
             pdfEndPage: pdfEndPage ? Number(pdfEndPage) : null,
             subjects,
+            integerQuestions: computedIntegerQuestions,
             markingScheme,
             answerKey,
             status,
@@ -256,6 +370,7 @@ export function TestFormModal({
           formData.append('pdfEndPage', pdfEndPage.toString());
         }
         formData.append('subjects', JSON.stringify(subjects));
+        formData.append('integerQuestions', JSON.stringify(computedIntegerQuestions));
         formData.append('markingScheme', JSON.stringify(markingScheme));
         formData.append('answerKey', JSON.stringify(answerKey));
         formData.append('status', status);
@@ -283,29 +398,54 @@ export function TestFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs select-none">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full border border-gray-300 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-xs select-none">
+      <div
+        className={`bg-white rounded-lg shadow-2xl transition-all duration-200 border border-gray-300 overflow-hidden flex flex-col h-[94vh] max-h-[94vh] ${
+          showPdfSidebar ? 'w-[98vw] max-w-7xl' : 'w-full max-w-3xl'
+        }`}
+      >
         {/* Header */}
-        <div className="bg-[#1e3a8a] text-white px-5 py-3.5 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-base sm:text-lg">
-              {isEditing ? 'Edit Test Paper' : 'Upload & Configure JEE Mock Test'}
-            </h2>
-            <p className="text-xs text-blue-200">
-              {isEditing ? `Modifying: ${testToEdit?.title}` : 'Drop PDF, select pages, and configure answer key'}
-            </p>
+        <div className="bg-[#1e3a8a] text-white px-4 sm:px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="font-bold text-sm sm:text-base flex items-center gap-2">
+                {isEditing ? 'Edit Test Paper' : 'Upload & Configure JEE Mock Test'}
+                <span className="text-[11px] font-semibold bg-blue-900/90 text-blue-200 px-2 py-0.5 rounded">
+                  {totalQuestions} Qs • {autoTotalMarks} Marks
+                </span>
+              </h2>
+              <p className="text-[11px] text-blue-200">
+                {isEditing ? `Modifying: ${testToEdit?.title}` : 'Drop PDF, shuffle subjects to match paper, & configure answer key'}
+              </p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
-          >
-            ✕
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Toggle Side-by-Side PDF Preview button */}
+            <button
+              type="button"
+              onClick={() => setShowPdfSidebar((prev) => !prev)}
+              className="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded border border-white/20 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Toggle Side-by-Side PDF viewer"
+            >
+              <span>{showPdfSidebar ? '◧ Hide PDF' : '◫ PDF Side-by-Side'}</span>
+              {pdfPreviewUrl && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50 px-4 pt-2 gap-2 text-xs font-bold">
+        <div className="flex border-b border-gray-200 bg-gray-50 px-4 pt-2 gap-2 text-xs font-bold flex-shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('details')}
@@ -315,18 +455,18 @@ export function TestFormModal({
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            1. Test Details & PDF
+            1. Test Details &amp; PDF
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('subjects')}
-            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all ${
+            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all flex items-center gap-1.5 ${
               activeTab === 'subjects'
                 ? 'border-blue-600 text-blue-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            2. Subjects & Marking
+            2. Shuffle Subjects ({subjectOrder.map((s) => s.name[0]).join('→')})
           </button>
           <button
             type="button"
@@ -341,398 +481,584 @@ export function TestFormModal({
           </button>
         </div>
 
-        {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs sm:text-sm">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 font-medium">
-              {error}
-            </div>
-          )}
-
-          {/* TAB 1: DETAILS & PDF */}
-          {activeTab === 'details' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Test Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. JEE Main 2026 Session 1 - Full Syllabus"
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Duration (Minutes)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={600}
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value, 10) || 180)}
-                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
-                  />
-                  <span className="text-[11px] text-gray-500">Standard JEE Main: 180 mins (3 hours)</span>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Maximum Marks (Auto-set)
-                  </label>
-                  <div className="w-full p-2 border border-blue-200 bg-blue-50/60 rounded text-xs sm:text-sm font-bold text-blue-900 flex items-center justify-between">
-                    <span>{autoTotalMarks} Marks</span>
-                    <span className="text-[11px] font-medium text-blue-700">
-                      ({totalQuestions} Qs × {markingCorrect} marks)
-                    </span>
+        {/* Split Container: Left = Form / Right = Side-by-Side Live PDF Viewer */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {/* Left Column: Form Controls */}
+          <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden bg-white">
+            <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs sm:text-sm">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 font-medium text-xs">
+                    {error}
                   </div>
-                  <span className="text-[11px] text-gray-500">Auto-calculated based on question count & marking scheme</span>
-                </div>
-              </div>
+                )}
 
-              {/* PDF Upload */}
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Question Paper PDF {!isEditing && <span className="text-red-500">*</span>}
-                </label>
-
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-5 text-center cursor-pointer transition-all bg-gray-50 hover:bg-blue-50/40"
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".pdf,application/pdf"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setPdfFile(e.target.files[0]);
-                      }
-                    }}
-                    className="hidden"
-                  />
-                  <UploadIcon className="w-8 h-8 text-gray-400 mx-auto mb-1" />
-                  <span className="text-xs font-bold text-blue-700 block mb-0.5">
-                    {pdfFile
-                      ? pdfFile.name
-                      : isEditing
-                      ? `Keep existing: ${testToEdit?.pdfFileName || 'Current PDF'}`
-                      : 'Click to select Question Paper PDF'}
-                  </span>
-                  <span className="text-[11px] text-gray-500">
-                    {pdfFile ? `${(pdfFile.size / (1024 * 1024)).toFixed(2)} MB` : 'Standard PDF format'}
-                  </span>
-                </div>
-              </div>
-
-              {/* PDF Preview and Page Range Selection */}
-              {pdfPreviewUrl && (
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
-                      PDF Preview & Page Range Selection
-                    </span>
-                    <span className="text-[11px] text-blue-700 font-semibold">
-                      Showing Page {pdfStartPage} to {pdfEndPage || 'End (N)'}
-                    </span>
-                  </div>
-
-                  {/* Page Range Inputs */}
-                  <div className="grid grid-cols-2 gap-3 bg-white p-2.5 rounded border border-gray-200">
+                {/* TAB 1: DETAILS & PDF */}
+                {activeTab === 'details' && (
+                  <div className="space-y-4">
                     <div>
-                      <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
-                        Start Page
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Test Title <span className="text-red-500">*</span>
                       </label>
+                      <input
+                        type="text"
+                        required
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g. JEE Main 2026 Session 1 - Full Syllabus"
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Duration (Minutes)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={600}
+                          value={duration}
+                          onChange={(e) => setDuration(parseInt(e.target.value, 10) || 180)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                        />
+                        <span className="text-[11px] text-gray-500">Standard JEE Main: 180 mins (3 hours)</span>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Maximum Marks (Auto-calculated)
+                        </label>
+                        <div className="w-full p-2 border border-blue-200 bg-blue-50/60 rounded text-xs sm:text-sm font-bold text-blue-900 flex items-center justify-between">
+                          <span>{autoTotalMarks} Marks</span>
+                          <span className="text-[11px] font-medium text-blue-700">
+                            ({totalQuestions} Qs × {markingCorrect} marks)
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-gray-500">Auto-set from questions count &amp; marking scheme</span>
+                      </div>
+                    </div>
+
+                    {/* PDF Upload */}
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Question Paper PDF {!isEditing && <span className="text-red-500">*</span>}
+                      </label>
+
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-5 text-center cursor-pointer transition-all bg-gray-50 hover:bg-blue-50/40"
+                      >
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          accept=".pdf,application/pdf"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setPdfFile(e.target.files[0]);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <UploadIcon className="w-8 h-8 text-gray-400 mx-auto mb-1" />
+                        <span className="text-xs font-bold text-blue-700 block mb-0.5">
+                          {pdfFile
+                            ? pdfFile.name
+                            : isEditing
+                            ? `Keep existing: ${testToEdit?.pdfFileName || 'Current PDF'}`
+                            : 'Click to select Question Paper PDF'}
+                        </span>
+                        <span className="text-[11px] text-gray-500">
+                          {pdfFile
+                            ? `${(pdfFile.size / (1024 * 1024)).toFixed(2)} MB • Preview active on right side`
+                            : 'Standard PDF format • Live preview opens automatically'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* PDF Page Range Selection */}
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+                          Page Range for Students (1 to N)
+                        </span>
+                        <span className="text-[11px] text-blue-700 font-semibold">
+                          Active: Page {pdfStartPage} to {pdfEndPage || (totalPdfPages ? `${totalPdfPages} (All)` : 'End')}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 bg-white p-2.5 rounded border border-gray-200">
+                        <div>
+                          <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
+                            Start Page
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={pdfStartPage}
+                            onChange={(e) => {
+                              const v = Math.max(1, parseInt(e.target.value, 10) || 1);
+                              setPdfStartPage(v);
+                              setPreviewPage(v);
+                            }}
+                            className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                            placeholder="1"
+                          />
+                          <span className="text-[10px] text-gray-400">Default: 1</span>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
+                            End Page (N)
+                          </label>
+                          <input
+                            type="number"
+                            min={pdfStartPage}
+                            value={pdfEndPage || ''}
+                            onChange={(e) => {
+                              const v = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                              setPdfEndPage(v);
+                            }}
+                            className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                            placeholder={totalPdfPages ? `${totalPdfPages} (All)` : 'All pages (N)'}
+                          />
+                          <span className="text-[10px] text-gray-400">Leave blank for all pages</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Publication Status */}
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">Publish Status</label>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="status"
+                            value="published"
+                            checked={status === 'published'}
+                            onChange={() => setStatus('published')}
+                          />
+                          <span className="font-semibold text-green-700">Published (Visible to students)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="status"
+                            value="draft"
+                            checked={status === 'draft'}
+                            onChange={() => setStatus('draft')}
+                          />
+                          <span className="font-semibold text-gray-600">Draft (Hidden)</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: SUBJECT SHUFFLING & MARKING */}
+                {activeTab === 'subjects' && (
+                  <div className="space-y-4">
+                    {/* Subject Shuffling Box */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-xs sm:text-sm flex items-center gap-1.5">
+                            <span>🔀 Subject Sequence &amp; Shuffling</span>
+                          </h3>
+                          <p className="text-[11px] text-gray-500">
+                            Reorder to match the PDF question paper sequence (e.g. Chemistry first, Physics first, etc.)
+                          </p>
+                        </div>
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded self-start sm:self-auto">
+                          Total: {totalQuestions} Questions
+                        </span>
+                      </div>
+
+                      {/* Quick Preset Buttons */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[11px] font-bold text-gray-600 mr-1">Quick Presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => applyPresetOrder('cpm')}
+                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded shadow-2xs transition-colors cursor-pointer"
+                        >
+                          🧪 Chemistry → ⚡ Physics → 📐 Math
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyPresetOrder('pcm')}
+                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 rounded shadow-2xs transition-colors cursor-pointer"
+                        >
+                          ⚡ Physics → 🧪 Chemistry → 📐 Math
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyPresetOrder('mpc')}
+                          className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-purple-50 text-purple-800 border border-purple-300 rounded shadow-2xs transition-colors cursor-pointer"
+                        >
+                          📐 Math → ⚡ Physics → 🧪 Chemistry
+                        </button>
+                      </div>
+
+                      {/* Interactive Reorder Cards */}
+                      <div className="space-y-2 pt-1">
+                        {subjects.map((sub, idx) => {
+                          const isFirst = idx === 0;
+                          const isLast = idx === subjects.length - 1;
+                          const intCount = sub.totalQuestions >= 30 ? 10 : 5;
+                          const intStart = sub.endQuestion - intCount + 1;
+
+                          return (
+                            <div
+                              key={sub.id}
+                              className="bg-white p-3 rounded-lg border border-gray-300 shadow-2xs flex items-center justify-between gap-3 hover:border-blue-400 transition-all"
+                            >
+                              {/* Left: Position & Subject Info */}
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                  #{idx + 1}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-2">
+                                    <span>{sub.name}</span>
+                                    <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                      Q. {sub.startQuestion} to {sub.endQuestion}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
+                                    <span>MCQs: Q.{sub.startQuestion}–{intStart - 1}</span>
+                                    <span>•</span>
+                                    <span className="text-amber-700 font-semibold">
+                                      Integers: Q.{intStart}–{sub.endQuestion}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Right: Question Count & Move Up / Down Buttons */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <label className="text-[11px] text-gray-500 font-medium">Questions:</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={sub.totalQuestions}
+                                    onChange={(e) =>
+                                      handleUpdateSubjectCount(sub.id, parseInt(e.target.value, 10) || 25)
+                                    }
+                                    className="w-16 p-1 border border-gray-300 rounded text-xs text-center font-bold"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={isFirst}
+                                    onClick={() => handleMoveSubject(idx, 'up')}
+                                    title="Move Up"
+                                    className="p-1.5 rounded border border-gray-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isLast}
+                                    onClick={() => handleMoveSubject(idx, 'down')}
+                                    title="Move Down"
+                                    className="p-1.5 rounded border border-gray-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-gray-700"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Marking Scheme */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <h3 className="font-bold text-gray-800 text-xs sm:text-sm mb-3">
+                        Marking Scheme Configuration
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-green-700 mb-1">
+                            Correct Answer Marks (+)
+                          </label>
+                          <input
+                            type="number"
+                            value={markingCorrect}
+                            onChange={(e) => setMarkingCorrect(parseInt(e.target.value, 10) || 4)}
+                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                          />
+                          <span className="text-[10px] text-gray-500">Default: +4</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-red-600 mb-1">
+                            Incorrect Answer Marks (-)
+                          </label>
+                          <input
+                            type="number"
+                            value={markingIncorrect}
+                            onChange={(e) => setMarkingIncorrect(parseInt(e.target.value, 10) || -1)}
+                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                          />
+                          <span className="text-[10px] text-gray-500">Default: -1</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Unattempted Marks
+                          </label>
+                          <input
+                            type="number"
+                            value={markingUnattempted}
+                            onChange={(e) => setMarkingUnattempted(parseInt(e.target.value, 10) || 0)}
+                            className="w-full p-2 border border-gray-300 rounded text-xs"
+                          />
+                          <span className="text-[10px] text-gray-500">Default: 0</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: ANSWER KEY */}
+                {activeTab === 'answers' && (
+                  <div className="space-y-3">
+                    {pdfPreviewUrl && (
+                      <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded text-xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-bold text-slate-700">Question Paper:</span>
+                          <span className="text-slate-500 truncate max-w-xs">
+                            {pdfFile?.name || testToEdit?.pdfFileName || 'PDF Attached'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleScanPdfForAnswers}
+                          disabled={isScanningPdf}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors flex-shrink-0"
+                        >
+                          🔍 {isScanningPdf ? 'Scanning PDF...' : 'Scan PDF for Answer Key'}
+                        </button>
+                      </div>
+                    )}
+
+                    {scanStatus && (
+                      <div className="p-2 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded text-xs font-semibold">
+                        {scanStatus}
+                      </div>
+                    )}
+
+                    <AnswerKeyEditor
+                      subjects={subjects}
+                      answerKey={answerKey}
+                      onChangeAnswerKey={(newKey) => setAnswerKey(newKey)}
+                      integerQuestions={computedIntegerQuestions}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-shrink-0">
+                <div>
+                  {activeTab !== 'details' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTab === 'answers') setActiveTab('subjects');
+                        else if (activeTab === 'subjects') setActiveTab('details');
+                      }}
+                      className="px-3 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
+                    >
+                      ← Previous Step
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  {activeTab !== 'answers' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTab === 'details') {
+                          if (!title.trim()) {
+                            setError('Please provide a test title.');
+                            return;
+                          }
+                          if (!isEditing && !pdfFile) {
+                            setError('Please upload a question paper PDF.');
+                            return;
+                          }
+                          setError(null);
+                          setActiveTab('subjects');
+                        } else if (activeTab === 'subjects') {
+                          setActiveTab('answers');
+                        }
+                      }}
+                      className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer"
+                    >
+                      Next Step →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-5 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <CheckIcon className="w-3.5 h-3.5" />
+                      {isSubmitting
+                        ? 'Saving...'
+                        : isEditing
+                        ? 'Update Test'
+                        : 'Publish JEE Mock Test'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* Right Column: Live PDF Preview Side-by-Side Panel */}
+          {showPdfSidebar && (
+            <div className="w-[46%] lg:w-[48%] border-l border-gray-200 bg-slate-100 flex flex-col overflow-hidden">
+              {/* PDF Toolbar */}
+              <div className="p-2 bg-slate-800 text-white flex items-center justify-between text-xs flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold flex items-center gap-1.5">
+                    📄 Live PDF Preview
+                  </span>
+                  {totalPdfPages && (
+                    <span className="text-[11px] text-slate-300">
+                      ({totalPdfPages} pages)
+                    </span>
+                  )}
+                </div>
+
+                {pdfPreviewUrl && (
+                  <div className="flex items-center gap-1.5">
+                    {/* Previous Page */}
+                    <button
+                      type="button"
+                      onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
+                      disabled={previewPage <= 1}
+                      title="Previous Page"
+                      className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded text-xs font-bold cursor-pointer"
+                    >
+                      ‹ Prev
+                    </button>
+
+                    {/* Page Jump Input */}
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <span>Page</span>
                       <input
                         type="number"
                         min={1}
-                        value={pdfStartPage}
-                        onChange={(e) => setPdfStartPage(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
-                        placeholder="1"
+                        max={totalPdfPages || 999}
+                        value={previewPage}
+                        onChange={(e) =>
+                          setPreviewPage(Math.max(1, parseInt(e.target.value, 10) || 1))
+                        }
+                        className="w-11 px-1 py-0.5 bg-slate-900 text-white rounded border border-slate-600 text-center font-bold text-xs"
                       />
-                      <span className="text-[10px] text-gray-400">Default: 1</span>
+                      <span>/ {totalPdfPages || 'N'}</span>
                     </div>
 
-                    <div>
-                      <label className="block font-bold text-gray-700 text-[11px] mb-0.5">
-                        End Page (N)
-                      </label>
-                      <input
-                        type="number"
-                        min={pdfStartPage}
-                        value={pdfEndPage || ''}
-                        onChange={(e) => {
-                          const v = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                          setPdfEndPage(v);
-                        }}
-                        className="w-full p-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
-                        placeholder="All pages (N)"
-                      />
-                      <span className="text-[10px] text-gray-400">Leave blank for all pages</span>
-                    </div>
-                  </div>
+                    {/* Next Page */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewPage((p) =>
+                          totalPdfPages ? Math.min(totalPdfPages, p + 1) : p + 1
+                        )
+                      }
+                      disabled={totalPdfPages ? previewPage >= totalPdfPages : false}
+                      title="Next Page"
+                      className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded text-xs font-bold cursor-pointer"
+                    >
+                      Next ›
+                    </button>
 
-                  {/* Compact PDF Preview Frame */}
-                  <div className="border border-gray-300 rounded overflow-hidden h-44 bg-white relative">
-                    <iframe
-                      src={`${pdfPreviewUrl}#page=${pdfStartPage}&toolbar=0&navpanes=0`}
-                      className="w-full h-full border-none"
-                      title="PDF Preview"
-                    />
-                  </div>
-                </div>
-              )}
+                    {/* Quick Button: Set as Start Page */}
+                    <button
+                      type="button"
+                      onClick={() => setPdfStartPage(previewPage)}
+                      title="Set current preview page as Question Paper Start Page"
+                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-[11px] font-semibold text-white ml-1 cursor-pointer"
+                    >
+                      Start={previewPage}
+                    </button>
 
-              {/* Publication Status */}
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Publish Status</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      value="published"
-                      checked={status === 'published'}
-                      onChange={() => setStatus('published')}
-                    />
-                    <span className="font-semibold text-green-700">Published (Visible to students)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      value="draft"
-                      checked={status === 'draft'}
-                      onChange={() => setStatus('draft')}
-                    />
-                    <span className="font-semibold text-gray-600">Draft (Hidden)</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
+                    {/* Quick Button: Set as End Page */}
+                    <button
+                      type="button"
+                      onClick={() => setPdfEndPage(previewPage)}
+                      title="Set current preview page as Question Paper End Page"
+                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-[11px] font-semibold text-white cursor-pointer"
+                    >
+                      End={previewPage}
+                    </button>
 
-          {/* TAB 2: SUBJECTS & MARKING */}
-          {activeTab === 'subjects' && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-gray-800 text-xs sm:text-sm">
-                    Questions per Subject (Total: {totalQuestions})
-                  </h3>
-                  <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
-                    Max Marks: {autoTotalMarks}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Physics Questions
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={physicsCount}
-                      onChange={(e) => setPhysicsCount(parseInt(e.target.value, 10) || 25)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">Q. 1 to {physicsCount} (21-25 Integer)</span>
+                    {/* Open in New Tab */}
+                    <a
+                      href={pdfPreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open full PDF in new tab"
+                      className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[11px] font-bold"
+                    >
+                      ↗
+                    </a>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Chemistry Questions
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={chemistryCount}
-                      onChange={(e) => setChemistryCount(parseInt(e.target.value, 10) || 25)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">
-                      Q. {physicsCount + 1} to {physicsCount + chemistryCount} (45-50 Integer)
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Mathematics Questions
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={mathCount}
-                      onChange={(e) => setMathCount(parseInt(e.target.value, 10) || 25)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">
-                      Q. {physicsCount + chemistryCount + 1} to {totalQuestions} (70-75 Integer)
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Marking Scheme */}
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <h3 className="font-bold text-gray-800 text-xs sm:text-sm mb-3">
-                  Marking Scheme Configuration
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-green-700 mb-1">
-                      Correct Answer Marks (+)
-                    </label>
-                    <input
-                      type="number"
-                      value={markingCorrect}
-                      onChange={(e) => setMarkingCorrect(parseInt(e.target.value, 10) || 4)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">Default: +4</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-red-600 mb-1">
-                      Incorrect Answer Marks (-)
-                    </label>
-                    <input
-                      type="number"
-                      value={markingIncorrect}
-                      onChange={(e) => setMarkingIncorrect(parseInt(e.target.value, 10) || -1)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">Default: -1</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">
-                      Unattempted Marks
-                    </label>
-                    <input
-                      type="number"
-                      value={markingUnattempted}
-                      onChange={(e) => setMarkingUnattempted(parseInt(e.target.value, 10) || 0)}
-                      className="w-full p-2 border border-gray-300 rounded text-xs"
-                    />
-                    <span className="text-[10px] text-gray-500">Default: 0</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: ANSWER KEY */}
-          {activeTab === 'answers' && (
-            <div className="space-y-3">
-              {pdfPreviewUrl && (
-                <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-700">Question Paper PDF:</span>
-                    <span className="text-slate-500 truncate max-w-xs">{pdfFile?.name || testToEdit?.pdfFileName || 'PDF Attached'}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleScanPdfForAnswers}
-                    disabled={isScanningPdf}
-                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+              {/* PDF Preview Frame or Empty State */}
+              <div className="flex-1 overflow-hidden relative bg-slate-200 flex flex-col">
+                {pdfPreviewUrl ? (
+                  <iframe
+                    key={`${pdfPreviewUrl}-${previewPage}`}
+                    src={`${pdfPreviewUrl}#page=${previewPage}&toolbar=0&navpanes=0`}
+                    className="w-full h-full border-none bg-white"
+                    title="Question Paper Live Preview"
+                  />
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 hover:text-blue-600 cursor-pointer transition-colors bg-slate-50 border-2 border-dashed border-slate-300 m-3 rounded-lg"
                   >
-                    🔍 {isScanningPdf ? 'Scanning PDF...' : 'Scan PDF for Answer Key'}
-                  </button>
-                </div>
-              )}
-
-              {scanStatus && (
-                <div className="p-2 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded text-xs font-semibold">
-                  {scanStatus}
-                </div>
-              )}
-
-              <AnswerKeyEditor
-                subjects={subjects}
-                answerKey={answerKey}
-                onChangeAnswerKey={(newKey) => setAnswerKey(newKey)}
-                integerQuestions={testToEdit?.integerQuestions}
-              />
+                    <UploadIcon className="w-12 h-12 text-slate-400 mb-2" />
+                    <span className="font-bold text-sm text-slate-700 mb-1">
+                      No Question Paper PDF Loaded
+                    </span>
+                    <p className="text-xs text-slate-500 max-w-xs mb-3">
+                      Select or drop a question paper PDF on the left. The live preview will appear right here side-by-side!
+                    </p>
+                    <span className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">
+                      Browse Question Paper PDF
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-
-          {/* Modal Footer Controls */}
-          <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
-            <div>
-              {activeTab !== 'details' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeTab === 'answers') setActiveTab('subjects');
-                    else if (activeTab === 'subjects') setActiveTab('details');
-                  }}
-                  className="px-3 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
-                >
-                  ← Previous Step
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 font-medium text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-
-              {activeTab !== 'answers' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeTab === 'details') {
-                      if (!title.trim()) {
-                        setError('Please provide a test title.');
-                        return;
-                      }
-                      if (!isEditing && !pdfFile) {
-                        setError('Please upload a question paper PDF.');
-                        return;
-                      }
-                      setError(null);
-                      setActiveTab('subjects');
-                    } else if (activeTab === 'subjects') {
-                      setActiveTab('answers');
-                    }
-                  }}
-                  className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer"
-                >
-                  Next Step →
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <CheckIcon className="w-3.5 h-3.5" />
-                  {isSubmitting
-                    ? 'Saving...'
-                    : isEditing
-                    ? 'Update Test'
-                    : 'Publish JEE Mock Test'}
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

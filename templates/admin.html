@@ -240,59 +240,128 @@
 
   </div>
 
-  <!-- Create Test Modal -->
+  <!-- Create Test Modal (Side-by-Side PDF Preview & Subject Shuffling) -->
   <div id="create-modal" class="modal-overlay">
-    <div class="modal-box">
-      <div style="background: #1e4273; color: white; padding: 12px 20px; font-weight: 700; font-size: 14px;">
-        Create New Mock Test
-      </div>
-      <form id="create-test-form" onsubmit="handleCreateTest(event)" style="padding: 20px;">
-        <div class="form-row">
-          <label>Test Title *</label>
-          <input type="text" name="title" required placeholder="e.g. JEE Main 2026 Mock Test 1">
+    <div class="modal-box" style="max-width: 1200px; width: 96%; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+      <div style="background: #1e4273; color: white; padding: 12px 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span>Create New JEE Mock Test</span>
+          <span id="flask-total-badge" style="font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.18); padding: 2px 8px; border-radius: 4px;">
+            75 Qs • 300 Marks
+          </span>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div class="form-row">
-            <label>Duration (Minutes)</label>
-            <input type="number" name="duration" value="180" required>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" onclick="toggleFlaskPdfSidebar()" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">
+            ◫ Toggle PDF Preview
+          </button>
+          <span onclick="closeCreateTestModal()" style="cursor: pointer; font-size: 18px; margin-left: 6px;">✕</span>
+        </div>
+      </div>
+
+      <!-- Split Body: Left = Form / Right = Live PDF Preview Side-by-Side -->
+      <div style="display: flex; flex: 1; overflow: hidden; min-height: 0;">
+        <!-- Left: Form Controls -->
+        <div style="flex: 1; min-width: 320px; overflow-y: auto; padding: 20px; border-right: 1px solid #e2e8f0; background: #ffffff;">
+          <form id="create-test-form" onsubmit="handleCreateTest(event)">
+            <div class="form-row">
+              <label>Test Title *</label>
+              <input type="text" name="title" required placeholder="e.g. JEE Main 2026 Mock Test 1">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-row">
+                <label>Duration (Minutes)</label>
+                <input type="number" name="duration" value="180" required>
+              </div>
+              <div class="form-row">
+                <label>Maximum Marks (Autoset)</label>
+                <div id="flask-marks-box" style="padding: 9px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; font-weight: 700; color: #1e3a8a; font-size: 13px;">
+                  300 Marks (75 Qs × 4 marks)
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label>Question Paper PDF *</label>
+              <input type="file" name="pdf" id="create-pdf-input" accept="application/pdf" required onchange="previewPdfFile(this)">
+              <span style="font-size: 11px; color: #64748b;">Live PDF preview will load on the right side-by-side</span>
+            </div>
+
+            <!-- Page Range Selection -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
+              <div class="form-row">
+                <label>Start Page</label>
+                <input type="number" name="pdfStartPage" id="create-pdf-start-page" value="1" min="1" onchange="updatePdfPreview()">
+              </div>
+              <div class="form-row">
+                <label>End Page (N)</label>
+                <input type="number" name="pdfEndPage" id="create-pdf-end-page" placeholder="All pages (N)" onchange="updatePdfPreview()">
+              </div>
+            </div>
+
+            <!-- Subject Shuffling & Ordering Section -->
+            <div style="margin-top: 14px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 12.5px; font-weight: 700; color: #1e293b;">
+                  🔀 Subject Sequence &amp; Shuffling
+                </span>
+                <span style="font-size: 11px; color: #64748b;">Match paper order (e.g. Chem first)</span>
+              </div>
+
+              <!-- Quick Presets -->
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                <button type="button" onclick="applyFlaskPreset('cpm')" class="cbt-btn cbt-btn-outline" style="padding: 3px 8px; font-size: 11px; background: white;">
+                  🧪 Chemistry → ⚡ Physics → 📐 Math
+                </button>
+                <button type="button" onclick="applyFlaskPreset('pcm')" class="cbt-btn cbt-btn-outline" style="padding: 3px 8px; font-size: 11px; background: white;">
+                  ⚡ Physics → 🧪 Chemistry → 📐 Math
+                </button>
+                <button type="button" onclick="applyFlaskPreset('mpc')" class="cbt-btn cbt-btn-outline" style="padding: 3px 8px; font-size: 11px; background: white;">
+                  📐 Math → ⚡ Physics → 🧪 Chemistry
+                </button>
+              </div>
+
+              <!-- Subject Cards Container -->
+              <div id="flask-subjects-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+
+            <div class="form-row" style="margin-top: 14px;">
+              <label>Initial Status</label>
+              <select name="status">
+                <option value="published">Published (Visible)</option>
+                <option value="draft">Draft (Hidden)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+              <button type="button" onclick="closeCreateTestModal()" class="cbt-btn cbt-btn-outline" style="padding: 8px 16px;">Cancel</button>
+              <button type="submit" class="cbt-btn cbt-btn-blue" style="padding: 8px 22px;">Create Test</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right: Live PDF Preview Side-by-Side Panel -->
+        <div id="flask-pdf-panel" style="width: 48%; display: flex; flex-direction: column; background: #0f172a; overflow: hidden;">
+          <div style="padding: 8px 14px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: space-between; font-size: 12px; flex-shrink: 0;">
+            <span style="font-weight: 700;">📄 Question Paper Preview</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" onclick="changeFlaskPreviewPage(-1)" style="padding: 2px 7px; background: #334155; border: 1px solid #475569; color: white; border-radius: 2px; cursor: pointer; font-size: 11px;">‹ Prev</button>
+              <span id="flask-page-indicator" style="font-size: 11px; color: #cbd5e1;">Page 1</span>
+              <button type="button" onclick="changeFlaskPreviewPage(1)" style="padding: 2px 7px; background: #334155; border: 1px solid #475569; color: white; border-radius: 2px; cursor: pointer; font-size: 11px;">Next ›</button>
+              <button type="button" onclick="setFlaskStartPage()" style="margin-left: 4px; padding: 2px 6px; background: #2563eb; color: white; border: none; border-radius: 2px; font-size: 10px; cursor: pointer;">Start=Page</button>
+              <button type="button" onclick="setFlaskEndPage()" style="padding: 2px 6px; background: #2563eb; color: white; border: none; border-radius: 2px; font-size: 10px; cursor: pointer;">End=Page</button>
+            </div>
           </div>
-          <div class="form-row">
-            <label>Maximum Marks (Autoset)</label>
-            <div style="padding: 9px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; font-weight: 700; color: #1e3a8a; font-size: 13px;">
-              300 Marks (75 Qs × 4 marks)
+          <div style="flex: 1; position: relative; background: #ffffff;">
+            <iframe id="pdf-preview-iframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+            <div id="flask-pdf-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; padding: 20px; text-align: center;">
+              <div style="font-size: 32px; margin-bottom: 8px;">📑</div>
+              <strong style="font-size: 13px; color: #334155; margin-bottom: 4px;">No PDF Selected Yet</strong>
+              <span style="font-size: 11px; max-width: 240px;">Select a question paper PDF on the left to see live preview here side-by-side.</span>
             </div>
           </div>
         </div>
-        <div class="form-row">
-          <label>Question Paper PDF *</label>
-          <input type="file" name="pdf" id="create-pdf-input" accept="application/pdf" required onchange="previewPdfFile(this)">
-        </div>
-        <!-- Page Range Selection & Preview -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
-          <div class="form-row">
-            <label>Start Page</label>
-            <input type="number" name="pdfStartPage" id="create-pdf-start-page" value="1" min="1" onchange="updatePdfPreview()">
-          </div>
-          <div class="form-row">
-            <label>End Page (N)</label>
-            <input type="number" name="pdfEndPage" id="create-pdf-end-page" placeholder="All pages (N)" onchange="updatePdfPreview()">
-          </div>
-        </div>
-        <div id="pdf-preview-box" style="display: none; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; height: 160px;">
-          <iframe id="pdf-preview-iframe" style="width: 100%; height: 100%; border: none;"></iframe>
-        </div>
-        <div class="form-row">
-          <label>Initial Status</label>
-          <select name="status">
-            <option value="draft">Draft (Hidden)</option>
-            <option value="published">Published (Visible)</option>
-          </select>
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-          <button type="button" onclick="closeCreateTestModal()" class="cbt-btn cbt-btn-outline" style="padding: 8px 16px;">Cancel</button>
-          <button type="submit" class="cbt-btn cbt-btn-blue" style="padding: 8px 20px;">Create Test</button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 
@@ -358,27 +427,169 @@
 
   <script>
     let currentPdfObjectUrl = null;
+    let flaskCurrentPreviewPage = 1;
+    let flaskPdfSidebarVisible = true;
+
+    let flaskSubjectOrder = [
+      { id: 'physics', name: 'Physics', count: 25 },
+      { id: 'chemistry', name: 'Chemistry', count: 25 },
+      { id: 'mathematics', name: 'Mathematics', count: 25 },
+    ];
+
+    function toggleFlaskPdfSidebar() {
+      flaskPdfSidebarVisible = !flaskPdfSidebarVisible;
+      const panel = document.getElementById('flask-pdf-panel');
+      if (panel) {
+        panel.style.display = flaskPdfSidebarVisible ? 'flex' : 'none';
+      }
+    }
+
+    function renderFlaskSubjects() {
+      const container = document.getElementById('flask-subjects-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      let runningQ = 1;
+      let totalQ = 0;
+
+      flaskSubjectOrder.forEach((sub, idx) => {
+        totalQ += sub.count;
+        const startQ = runningQ;
+        const endQ = runningQ + sub.count - 1;
+        runningQ = endQ + 1;
+        const intCount = sub.count >= 30 ? 10 : 5;
+        const intStart = endQ - intCount + 1;
+
+        const card = document.createElement('div');
+        card.style.display = 'flex';
+        card.style.alignItems = 'center';
+        card.style.justifyContent = 'space-between';
+        card.style.padding = '8px 12px';
+        card.style.background = '#ffffff';
+        card.style.border = '1px solid #cbd5e1';
+        card.style.borderRadius = '5px';
+
+        card.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 22px; height: 22px; border-radius: 50%; background: #1e293b; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold;">
+              #${idx + 1}
+            </div>
+            <div>
+              <div style="font-size: 12px; font-weight: 700; color: #1e293b;">
+                ${sub.name}
+                <span style="font-size: 10.5px; font-weight: 600; color: #2563eb; background: #eff6ff; padding: 1px 6px; border-radius: 3px; border: 1px solid #bfdbfe; margin-left: 4px;">
+                  Q. ${startQ}–${endQ}
+                </span>
+              </div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
+                MCQ: Q.${startQ}–${intStart - 1} • <span style="color: #b45309; font-weight: 600;">Integers: Q.${intStart}–${endQ}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 10.5px; color: #64748b;">Qs:</span>
+            <input type="number" min="1" max="100" value="${sub.count}" onchange="updateFlaskSubjectCount('${sub.id}', this.value)" style="width: 48px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px; font-size: 11px; text-align: center; font-weight: bold;">
+            <button type="button" ${idx === 0 ? 'disabled' : ''} onclick="moveFlaskSubject(${idx}, 'up')" style="padding: 2px 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; border-radius: 3px; font-size: 10px;">▲</button>
+            <button type="button" ${idx === flaskSubjectOrder.length - 1 ? 'disabled' : ''} onclick="moveFlaskSubject(${idx}, 'down')" style="padding: 2px 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; border-radius: 3px; font-size: 10px;">▼</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      const totalMarks = totalQ * 4;
+      const marksBox = document.getElementById('flask-marks-box');
+      if (marksBox) {
+        marksBox.textContent = `${totalMarks} Marks (${totalQ} Qs × 4 marks)`;
+      }
+      const totalBadge = document.getElementById('flask-total-badge');
+      if (totalBadge) {
+        totalBadge.textContent = `${totalQ} Qs • ${totalMarks} Marks`;
+      }
+    }
+
+    function moveFlaskSubject(idx, dir) {
+      const targetIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= flaskSubjectOrder.length) return;
+      const temp = flaskSubjectOrder[idx];
+      flaskSubjectOrder[idx] = flaskSubjectOrder[targetIdx];
+      flaskSubjectOrder[targetIdx] = temp;
+      renderFlaskSubjects();
+    }
+
+    function updateFlaskSubjectCount(id, count) {
+      const c = Math.max(1, parseInt(count, 10) || 25);
+      const sub = flaskSubjectOrder.find(s => s.id === id);
+      if (sub) sub.count = c;
+      renderFlaskSubjects();
+    }
+
+    function applyFlaskPreset(preset) {
+      const findCount = (id) => flaskSubjectOrder.find(s => s.id === id)?.count || 25;
+      if (preset === 'cpm') {
+        flaskSubjectOrder = [
+          { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+          { id: 'physics', name: 'Physics', count: findCount('physics') },
+          { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+        ];
+      } else if (preset === 'pcm') {
+        flaskSubjectOrder = [
+          { id: 'physics', name: 'Physics', count: findCount('physics') },
+          { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+          { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+        ];
+      } else if (preset === 'mpc') {
+        flaskSubjectOrder = [
+          { id: 'mathematics', name: 'Mathematics', count: findCount('mathematics') },
+          { id: 'physics', name: 'Physics', count: findCount('physics') },
+          { id: 'chemistry', name: 'Chemistry', count: findCount('chemistry') },
+        ];
+      }
+      renderFlaskSubjects();
+    }
 
     function previewPdfFile(input) {
       if (input.files && input.files[0]) {
         if (currentPdfObjectUrl) URL.revokeObjectURL(currentPdfObjectUrl);
         currentPdfObjectUrl = URL.createObjectURL(input.files[0]);
+        flaskCurrentPreviewPage = 1;
         updatePdfPreview();
       }
     }
 
     function updatePdfPreview() {
       if (!currentPdfObjectUrl) return;
-      const startPage = document.getElementById('create-pdf-start-page').value || 1;
-      const box = document.getElementById('pdf-preview-box');
       const iframe = document.getElementById('pdf-preview-iframe');
-      box.style.display = 'block';
-      iframe.src = `${currentPdfObjectUrl}#page=${startPage}&toolbar=0&navpanes=0`;
+      const placeholder = document.getElementById('flask-pdf-placeholder');
+      const indicator = document.getElementById('flask-page-indicator');
+      if (placeholder) placeholder.style.display = 'none';
+      if (iframe) {
+        iframe.style.display = 'block';
+        iframe.src = `${currentPdfObjectUrl}#page=${flaskCurrentPreviewPage}&toolbar=0&navpanes=0`;
+      }
+      if (indicator) {
+        indicator.textContent = `Page ${flaskCurrentPreviewPage}`;
+      }
+    }
+
+    function changeFlaskPreviewPage(delta) {
+      flaskCurrentPreviewPage = Math.max(1, flaskCurrentPreviewPage + delta);
+      updatePdfPreview();
+    }
+
+    function setFlaskStartPage() {
+      const input = document.getElementById('create-pdf-start-page');
+      if (input) input.value = flaskCurrentPreviewPage;
+    }
+
+    function setFlaskEndPage() {
+      const input = document.getElementById('create-pdf-end-page');
+      if (input) input.value = flaskCurrentPreviewPage;
     }
 
     // Create Test
     function openCreateTestModal() {
       document.getElementById('create-modal').style.display = 'flex';
+      renderFlaskSubjects();
     }
     function closeCreateTestModal() {
       document.getElementById('create-modal').style.display = 'none';
@@ -388,13 +599,45 @@
       const form = document.getElementById('create-test-form');
       const formData = new FormData(form);
 
-      // Default subjects: Physics (1-25), Chemistry (26-50), Mathematics (51-75)
-      const defaultSubjects = [
-        { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
-        { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
-        { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
-      ];
-      formData.append('subjects', JSON.stringify(defaultSubjects));
+      // Compute sequential subjects and integer questions dynamically from flaskSubjectOrder
+      let runningQ = 1;
+      const computedSubjects = [];
+      const computedIntegers = [];
+
+      flaskSubjectOrder.forEach((item) => {
+        const startQ = runningQ;
+        const endQ = runningQ + item.count - 1;
+        runningQ = endQ + 1;
+        computedSubjects.push({
+          id: item.id,
+          name: item.name,
+          startQuestion: startQ,
+          endQuestion: endQ,
+          totalQuestions: item.count,
+        });
+
+        const intCount = item.count >= 30 ? 10 : 5;
+        const intStart = endQ - intCount + 1;
+        for (let q = intStart; q <= endQ; q++) {
+          computedIntegers.push(q);
+        }
+      });
+
+      formData.append('subjects', JSON.stringify(computedSubjects));
+      formData.append('integerQuestions', JSON.stringify(computedIntegers));
+
+      try {
+        const res = await fetch('/api/admin/tests', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to create test');
+        }
+      } catch (err) {
+        alert('Network error creating test');
+      }
+    }
 
       try {
         const res = await fetch('/api/admin/tests', { method: 'POST', body: formData });
