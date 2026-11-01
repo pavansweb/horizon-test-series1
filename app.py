@@ -373,7 +373,7 @@ Critical Instructions:
 
 6. Return ONLY clean, raw JSON matching the schema above."""
 
-    models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']
+    models = ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-3.5-flash', 'gemini-3.5-flash-lite']
     payload = json.dumps({
         "contents": [{
             "parts": [

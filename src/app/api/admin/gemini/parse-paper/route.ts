@@ -7,12 +7,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for AI paper analysis
 
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.8-flash-lite',
   'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
 ];
 
 export async function POST(request: NextRequest) {
@@ -155,6 +153,9 @@ Critical Instructions:
       let keyHitRateLimit = false;
 
       for (const model of GEMINI_MODELS) {
+        const controller = new AbortController();
+        const timeoutTimer = setTimeout(() => controller.abort(), 26000);
+
         try {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
           const response = await fetch(url, {
@@ -179,6 +180,7 @@ Critical Instructions:
                 temperature: 0.1,
               },
             }),
+            signal: controller.signal,
           });
 
           const data = await response.json();
@@ -199,17 +201,19 @@ Critical Instructions:
             const errMsg = data.error?.message || `Model ${model} returned status ${response.status}`;
             lastError = errMsg;
             const isRateLimit = response.status === 429 || /quota|rate\s*limit|resource_exhausted/i.test(errMsg);
-            console.warn(`Gemini model ${model} (Key #${keyIdx + 1}) failed: ${errMsg}`);
+            console.warn(`Horizon AI (${model}, Key #${keyIdx + 1}) failed: ${errMsg}`);
 
             if (isRateLimit) {
               keyHitRateLimit = true;
-              console.warn(`Gemini Key #${keyIdx + 1} hit rate limit / quota, rotating to backup key if available...`);
+              console.warn(`Key #${keyIdx + 1} hit rate limit / quota, rotating to backup key if available...`);
               break; // Switch to the next API key immediately
             }
           }
         } catch (err: unknown) {
           lastError = (err as Error)?.message || 'Network error';
           console.warn(`Error with ${model} on Key #${keyIdx + 1}:`, err);
+        } finally {
+          clearTimeout(timeoutTimer);
         }
       }
 
