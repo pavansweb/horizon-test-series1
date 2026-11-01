@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { PublicTest, CandidateResponseMap, QuestionStatus } from '@/lib/types';
+import { PublicTest, CandidateResponseMap, QuestionStatus, isIntegerQuestion } from '@/lib/types';
 import { NtaHeader } from '@/components/nta/NtaHeader';
 import { NtaSubjectBar } from '@/components/nta/NtaSubjectBar';
 import { NtaPdfViewer } from '@/components/nta/NtaPdfViewer';
@@ -452,18 +452,21 @@ export default function TestAttemptPage({
               background: '#ffffff',
             }}
           >
-            {/* Scrollable Compact PDF Question Embed (height ~240px matching media) */}
+            {/* Scrollable Compact PDF Question Embed */}
             <NtaPdfViewer
               pdfUrl={test.pdfUrl}
               currentQuestionNumber={currentQuestionNumber}
+              startPage={test.pdfStartPage}
+              endPage={test.pdfEndPage}
             />
 
-            {/* Vertical Options 1), 2), 3), 4) */}
+            {/* Vertical Options 1), 2), 3), 4) or Numerical Value Keypad */}
             <NtaOptionSelector
               currentQuestionNumber={currentQuestionNumber}
               selectedOption={selectedOption}
               onSelectOption={(opt) => setSelectedOption(opt)}
               onClearResponse={handleClearResponse}
+              isInteger={isIntegerQuestion(currentQuestionNumber, test.integerQuestions)}
             />
 
             {/* The Bottomline Divider */}

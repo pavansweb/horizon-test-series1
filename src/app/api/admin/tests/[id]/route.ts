@@ -22,12 +22,20 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Test not found' }, { status: 404 });
     }
 
+    const subjects = body.subjects !== undefined ? body.subjects : existing.subjects;
+    const markingScheme = body.markingScheme !== undefined ? body.markingScheme : existing.markingScheme;
+    const totalQuestions = subjects.reduce((sum: number, s: { totalQuestions: number }) => sum + s.totalQuestions, 0);
+    const autoTotalMarks = totalQuestions * (markingScheme.correct ?? 4);
+
     const updated = await updateTest(id, {
       title: body.title !== undefined ? body.title : existing.title,
       duration: body.duration !== undefined ? Number(body.duration) : existing.duration,
-      totalMarks: body.totalMarks !== undefined ? Number(body.totalMarks) : existing.totalMarks,
-      subjects: body.subjects !== undefined ? body.subjects : existing.subjects,
-      markingScheme: body.markingScheme !== undefined ? body.markingScheme : existing.markingScheme,
+      totalMarks: autoTotalMarks,
+      pdfStartPage: body.pdfStartPage !== undefined ? Number(body.pdfStartPage) : existing.pdfStartPage,
+      pdfEndPage: body.pdfEndPage !== undefined ? Number(body.pdfEndPage) : existing.pdfEndPage,
+      integerQuestions: body.integerQuestions !== undefined ? body.integerQuestions : existing.integerQuestions,
+      subjects,
+      markingScheme,
       answerKey: body.answerKey !== undefined ? body.answerKey : existing.answerKey,
       status: body.status !== undefined ? body.status : existing.status,
     });

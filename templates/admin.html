@@ -257,13 +257,29 @@
             <input type="number" name="duration" value="180" required>
           </div>
           <div class="form-row">
-            <label>Total Marks</label>
-            <input type="number" name="totalMarks" value="300" required>
+            <label>Maximum Marks (Autoset)</label>
+            <div style="padding: 9px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; font-weight: 700; color: #1e3a8a; font-size: 13px;">
+              300 Marks (75 Qs × 4 marks)
+            </div>
           </div>
         </div>
         <div class="form-row">
           <label>Question Paper PDF *</label>
-          <input type="file" name="pdf" accept="application/pdf" required>
+          <input type="file" name="pdf" id="create-pdf-input" accept="application/pdf" required onchange="previewPdfFile(this)">
+        </div>
+        <!-- Page Range Selection & Preview -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
+          <div class="form-row">
+            <label>Start Page</label>
+            <input type="number" name="pdfStartPage" id="create-pdf-start-page" value="1" min="1" onchange="updatePdfPreview()">
+          </div>
+          <div class="form-row">
+            <label>End Page (N)</label>
+            <input type="number" name="pdfEndPage" id="create-pdf-end-page" placeholder="All pages (N)" onchange="updatePdfPreview()">
+          </div>
+        </div>
+        <div id="pdf-preview-box" style="display: none; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; height: 160px;">
+          <iframe id="pdf-preview-iframe" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
         <div class="form-row">
           <label>Initial Status</label>
@@ -327,6 +343,25 @@
   </div>
 
   <script>
+    let currentPdfObjectUrl = null;
+
+    function previewPdfFile(input) {
+      if (input.files && input.files[0]) {
+        if (currentPdfObjectUrl) URL.revokeObjectURL(currentPdfObjectUrl);
+        currentPdfObjectUrl = URL.createObjectURL(input.files[0]);
+        updatePdfPreview();
+      }
+    }
+
+    function updatePdfPreview() {
+      if (!currentPdfObjectUrl) return;
+      const startPage = document.getElementById('create-pdf-start-page').value || 1;
+      const box = document.getElementById('pdf-preview-box');
+      const iframe = document.getElementById('pdf-preview-iframe');
+      box.style.display = 'block';
+      iframe.src = `${currentPdfObjectUrl}#page=${startPage}&toolbar=0&navpanes=0`;
+    }
+
     // Create Test
     function openCreateTestModal() {
       document.getElementById('create-modal').style.display = 'flex';
@@ -339,11 +374,11 @@
       const form = document.getElementById('create-test-form');
       const formData = new FormData(form);
 
-      // Default subjects: Physics (1-30), Chemistry (31-60), Mathematics (61-90)
+      // Default subjects: Physics (1-25), Chemistry (26-50), Mathematics (51-75)
       const defaultSubjects = [
-        { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 30, totalQuestions: 30 },
-        { id: 'chemistry', name: 'Chemistry', startQuestion: 31, endQuestion: 60, totalQuestions: 30 },
-        { id: 'mathematics', name: 'Mathematics', startQuestion: 61, endQuestion: 90, totalQuestions: 30 },
+        { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
+        { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
+        { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
       ];
       formData.append('subjects', JSON.stringify(defaultSubjects));
 
@@ -431,23 +466,61 @@
         lbl.style.fontSize = '11px';
         lbl.style.fontWeight = '700';
 
-        const sel = document.createElement('select');
-        sel.style.fontSize = '11px';
-        sel.style.padding = '1px 4px';
-        ['', 'A', 'B', 'C', 'D'].forEach(opt => {
-          const o = document.createElement('option');
-          o.value = opt;
-          o.textContent = opt || '-';
-          if ((activeKeyMap[q] || '') === opt) o.selected = true;
-          sel.appendChild(o);
-        });
+        const isInt = (q >= 21 && q <= 25) || (q >= 45 && q <= 50) || (q >= 70 && q <= 75);
 
-        sel.onchange = (e) => {
-          activeKeyMap[q] = e.target.value;
-        };
+        if (isInt) {
+          const badge = document.createElement('span');
+          badge.textContent = 'INT';
+          badge.style.fontSize = '9px';
+          badge.style.fontWeight = 'bold';
+          badge.style.background = '#fef3c7';
+          badge.style.color = '#92400e';
+          badge.style.padding = '1px 3px';
+          badge.style.borderRadius = '2px';
+          badge.style.marginRight = '4px';
 
-        row.appendChild(lbl);
-        row.appendChild(sel);
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = 'Num';
+          input.value = activeKeyMap[q] || '';
+          input.style.fontSize = '11px';
+          input.style.padding = '2px 4px';
+          input.style.width = '48px';
+          input.style.textAlign = 'center';
+          input.style.fontWeight = 'bold';
+          input.style.border = '1px solid #3b82f6';
+          input.style.borderRadius = '3px';
+          input.oninput = (e) => {
+            activeKeyMap[q] = e.target.value.trim();
+          };
+
+          const left = document.createElement('div');
+          left.style.display = 'flex';
+          left.style.alignItems = 'center';
+          left.appendChild(lbl);
+          left.appendChild(badge);
+
+          row.appendChild(left);
+          row.appendChild(input);
+        } else {
+          const sel = document.createElement('select');
+          sel.style.fontSize = '11px';
+          sel.style.padding = '1px 4px';
+          ['', 'A', 'B', 'C', 'D'].forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt || '-';
+            if ((activeKeyMap[q] || '') === opt) o.selected = true;
+            sel.appendChild(o);
+          });
+
+          sel.onchange = (e) => {
+            activeKeyMap[q] = e.target.value;
+          };
+
+          row.appendChild(lbl);
+          row.appendChild(sel);
+        }
         grid.appendChild(row);
       }
       container.appendChild(grid);
@@ -455,22 +528,22 @@
 
     function applyBulkKey() {
       const text = document.getElementById('bulk-key-input').value;
-      const regex = /(\d+)\s*[:.\-)]\s*([A-D])/gi;
+      const regex = /(\d+)\s*[:.\-)]\s*([A-D]|[-+]?\d*\.?\d+)/gi;
       let match;
       let found = false;
 
       while ((match = regex.exec(text)) !== null) {
         found = true;
         const q = parseInt(match[1], 10);
-        const opt = match[2].toUpperCase();
+        const opt = match[2].trim().toUpperCase();
         if (q >= 1 && q <= activeTotalQ) activeKeyMap[q] = opt;
       }
 
       if (!found) {
-        const tokens = text.trim().toUpperCase().split(/[\s,;]+/).filter(t => /^[A-D]$/.test(t));
+        const tokens = text.trim().split(/[\s,;]+/).filter(t => /^[A-D]$/i.test(t) || /^[-+]?\d*\.?\d+$/.test(t));
         tokens.forEach((opt, idx) => {
           const q = idx + 1;
-          if (q <= activeTotalQ) activeKeyMap[q] = opt;
+          if (q <= activeTotalQ) activeKeyMap[q] = opt.toUpperCase();
         });
       }
 

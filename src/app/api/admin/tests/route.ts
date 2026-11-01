@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
     let totalMarks: number = 300;
     let pdfUrl: string = '';
     let pdfFileName: string = '';
+    let pdfStartPage: number | undefined = undefined;
+    let pdfEndPage: number | undefined = undefined;
+    let integerQuestions: number[] | undefined = undefined;
     let subjects: SubjectConfig[] = [];
     let markingScheme: MarkingScheme = { correct: 4, incorrect: -1, unattempted: 0 };
     let answerKey: Record<number, string> = {};
@@ -58,8 +61,21 @@ export async function POST(request: NextRequest) {
 
       title = (formData.get('title') as string) || 'JEE Main Mock Test';
       duration = parseInt((formData.get('duration') as string) || '180', 10);
-      totalMarks = parseInt((formData.get('totalMarks') as string) || '300', 10);
       status = ((formData.get('status') as string) === 'draft') ? 'draft' : 'published';
+
+      if (formData.get('pdfStartPage')) {
+        pdfStartPage = parseInt(formData.get('pdfStartPage') as string, 10) || 1;
+      }
+      if (formData.get('pdfEndPage')) {
+        pdfEndPage = parseInt(formData.get('pdfEndPage') as string, 10) || undefined;
+      }
+      if (formData.get('integerQuestions')) {
+        try {
+          integerQuestions = JSON.parse(formData.get('integerQuestions') as string);
+        } catch {
+          // ignore
+        }
+      }
 
       try {
         const rawSubjects = formData.get('subjects') as string;
@@ -85,9 +101,11 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
       title = body.title || 'JEE Main Mock Test';
       duration = body.duration || 180;
-      totalMarks = body.totalMarks || 300;
       pdfUrl = body.pdfUrl || '';
       pdfFileName = body.pdfFileName || 'question_paper.pdf';
+      pdfStartPage = body.pdfStartPage ? Number(body.pdfStartPage) : undefined;
+      pdfEndPage = body.pdfEndPage ? Number(body.pdfEndPage) : undefined;
+      integerQuestions = body.integerQuestions || undefined;
       subjects = body.subjects || [];
       markingScheme = body.markingScheme || { correct: 4, incorrect: -1, unattempted: 0 };
       answerKey = body.answerKey || {};
@@ -110,12 +128,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-compute total marks based on number of questions and marking scheme
+    const totalQuestions = subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
+    totalMarks = totalQuestions * (markingScheme.correct ?? 4);
+
     const newTest = await createTest({
       title,
       duration,
       totalMarks,
       pdfUrl,
       pdfFileName,
+      pdfStartPage,
+      pdfEndPage,
+      integerQuestions,
       subjects,
       markingScheme,
       answerKey,

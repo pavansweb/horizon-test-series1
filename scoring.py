@@ -9,6 +9,12 @@ def normalize_option(opt):
     mapping = {'1': 'A', '2': 'B', '3': 'C', '4': 'D'}
     return mapping.get(o, o)
 
+def is_integer_question(q_num, test):
+    int_qs = test.get('integerQuestions')
+    if int_qs and len(int_qs) > 0:
+        return q_num in int_qs
+    return (21 <= q_num <= 25) or (45 <= q_num <= 50) or (70 <= q_num <= 75)
+
 def calculate_and_save_result(test, submission):
     candidate_responses = submission.get('candidateResponses', {})
     time_taken_seconds = submission.get('timeTakenSeconds', 0)
@@ -54,14 +60,30 @@ def calculate_and_save_result(test, submission):
         sub_id = target_sub.get('id')
         sub_stat = subject_results_map.get(sub_id)
 
-        raw_selected = candidate_responses.get(str(q_num)) or candidate_responses.get(q_num)
-        raw_correct = answer_key.get(str(q_num)) or answer_key.get(q_num, '')
+        raw_selected = candidate_responses.get(str(q_num))
+        if raw_selected is None:
+            raw_selected = candidate_responses.get(q_num)
+        raw_correct = answer_key.get(str(q_num))
+        if raw_correct is None:
+            raw_correct = answer_key.get(q_num, '')
 
         norm_selected = normalize_option(raw_selected)
         norm_correct = normalize_option(raw_correct)
 
-        is_attempted = bool(norm_selected)
-        is_correct = is_attempted and (norm_selected == norm_correct)
+        is_int_q = is_integer_question(q_num, test)
+        is_attempted = bool(raw_selected is not None and str(raw_selected).strip() != '')
+        is_correct = False
+
+        if is_attempted:
+            if is_int_q:
+                try:
+                    cand_f = float(str(raw_selected).strip())
+                    corr_f = float(str(raw_correct).strip())
+                    is_correct = abs(cand_f - corr_f) < 0.0001
+                except ValueError:
+                    is_correct = str(raw_selected).strip().lower() == str(raw_correct).strip().lower()
+            else:
+                is_correct = (norm_selected == norm_correct)
 
         marks_awarded = 0
         if is_attempted:
@@ -94,45 +116,39 @@ def calculate_and_save_result(test, submission):
             'questionNumber': q_num,
             'subjectId': sub_id,
             'subjectName': target_sub.get('name', sub_id),
-            'selectedOption': raw_selected if raw_selected else None,
-            'correctOption': raw_correct if raw_correct else '',
+            'selectedOption': str(raw_selected) if raw_selected is not None else None,
+            'correctOption': str(raw_correct) if raw_correct is not None else '',
             'isCorrect': is_correct,
             'isAttempted': is_attempted,
             'marksAwarded': marks_awarded,
-            'status': status,
+            'status': status
         })
 
-    # Calculate accuracy
-    subject_results = []
+    # Calculate accuracies
     for s_id, s_data in subject_results_map.items():
-        att = s_data['attempted']
-        corr = s_data['correct']
-        s_data['accuracy'] = round((corr / att) * 100) if att > 0 else 0
-        subject_results.append(s_data)
+        if s_data['attempted'] > 0:
+            s_data['accuracy'] = round((s_data['correct'] / s_data['attempted']) * 100, 1)
 
-    overall_accuracy = round((total_correct / total_attempted) * 100) if total_attempted > 0 else 0
-    max_score = total_q * marking_scheme.get('correct', 4)
+    total_accuracy = round((total_correct / total_attempted) * 100, 1) if total_attempted > 0 else 0
+    max_total_marks = total_q * marking_scheme.get('correct', 4)
 
-    submission_id = str(uuid.uuid4())
     result_data = {
-        'submissionId': submission_id,
+        'submissionId': str(uuid.uuid4()),
         'testId': test.get('id'),
-        'testTitle': test.get('title', 'Horizon Mock Test'),
+        'testTitle': test.get('title', 'JEE Mock Test'),
         'pdfUrl': test.get('pdfUrl', ''),
         'candidateName': candidate_name,
         'submittedAt': datetime.utcnow().isoformat() + 'Z',
+        'timeTakenSeconds': time_taken_seconds,
         'totalScore': total_score,
-        'maxScore': max_score,
-        'totalQuestions': total_q,
+        'maxScore': max_total_marks,
+        'accuracy': total_accuracy,
         'totalAttempted': total_attempted,
         'totalCorrect': total_correct,
         'totalIncorrect': total_incorrect,
         'totalUnattempted': total_unattempted,
-        'overallAccuracy': overall_accuracy,
-        'timeTakenSeconds': time_taken_seconds,
-        'durationMinutes': test.get('duration', 180),
-        'subjectResults': subject_results,
-        'questionReviews': question_reviews,
+        'subjectResults': list(subject_results_map.values()),
+        'questionReviews': question_reviews
     }
 
     save_submission(result_data)

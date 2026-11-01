@@ -310,8 +310,149 @@
     if (autoSave) saveProgress();
   }
 
-  // Render Options 1), 2), 3), 4)
+  function isIntegerQuestion(qNum) {
+    if (testData && testData.integerQuestions && testData.integerQuestions.length > 0) {
+      return testData.integerQuestions.includes(qNum);
+    }
+    return (
+      (qNum >= 21 && qNum <= 25) ||
+      (qNum >= 45 && qNum <= 50) ||
+      (qNum >= 70 && qNum <= 75)
+    );
+  }
+
+  // Render Options 1), 2), 3), 4) or Numerical Keypad
   function renderOptions() {
+    elOptionsContainer.innerHTML = '';
+    const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+
+    if (isIntegerQuestion(currentQuestion)) {
+      const container = document.createElement('div');
+      container.className = 'numerical-input-container';
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '8px';
+      container.style.maxWidth = '360px';
+
+      const badge = document.createElement('div');
+      badge.innerHTML = '<span style="font-size: 11px; font-weight: bold; background: #dbeafe; color: #1e3a8a; padding: 2px 6px; border-radius: 4px; border: 1px solid #bfdbfe; text-transform: uppercase;">Numerical Value Answer</span> <span style="font-size: 11px; color: #64748b;">(Use keyboard or keypad)</span>';
+      container.appendChild(badge);
+
+      const inputRow = document.createElement('div');
+      inputRow.style.display = 'flex';
+      inputRow.style.alignItems = 'center';
+      inputRow.style.gap = '8px';
+
+      const label = document.createElement('span');
+      label.textContent = 'Answer:';
+      label.style.fontWeight = 'bold';
+      label.style.fontSize = '14px';
+      label.style.color = isDark ? '#e2e8f0' : '#1e293b';
+      inputRow.appendChild(label);
+
+      const numInput = document.createElement('input');
+      numInput.type = 'text';
+      numInput.value = selectedOption || '';
+      numInput.placeholder = 'e.g. 5 or -2.5';
+      numInput.style.padding = '6px 10px';
+      numInput.style.border = '2px solid #2563eb';
+      numInput.style.borderRadius = '4px';
+      numInput.style.fontWeight = 'bold';
+      numInput.style.fontSize = '16px';
+      numInput.style.width = '180px';
+      numInput.style.background = isDark ? '#1e293b' : '#ffffff';
+      numInput.style.color = isDark ? '#f8fafc' : '#0f172a';
+      numInput.oninput = (e) => {
+        selectedOption = e.target.value;
+        updateActionButtons();
+      };
+      inputRow.appendChild(numInput);
+      container.appendChild(inputRow);
+
+      // Keypad
+      const keypadWrap = document.createElement('div');
+      keypadWrap.style.background = isDark ? '#0f172a' : '#f8fafc';
+      keypadWrap.style.border = `1px solid ${isDark ? '#334155' : '#cbd5e1'}`;
+      keypadWrap.style.borderRadius = '6px';
+      keypadWrap.style.padding = '8px';
+      keypadWrap.style.width = 'fit-content';
+
+      const keysGrid = document.createElement('div');
+      keysGrid.style.display = 'grid';
+      keysGrid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+      keysGrid.style.gap = '6px';
+      keysGrid.style.width = '180px';
+
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '-'].forEach((k) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = k;
+        btn.style.padding = '6px 0';
+        btn.style.background = isDark ? '#1e293b' : '#ffffff';
+        btn.style.color = isDark ? '#f8fafc' : '#0f172a';
+        btn.style.border = `1px solid ${isDark ? '#334155' : '#cbd5e1'}`;
+        btn.style.borderRadius = '4px';
+        btn.style.fontWeight = 'bold';
+        btn.style.fontSize = '14px';
+        btn.style.cursor = 'pointer';
+        btn.onclick = () => {
+          selectedOption = (selectedOption || '') + k;
+          numInput.value = selectedOption;
+          updateActionButtons();
+        };
+        keysGrid.appendChild(btn);
+      });
+
+      // Backspace
+      const btnBack = document.createElement('button');
+      btnBack.type = 'button';
+      btnBack.textContent = '⌫ Back';
+      btnBack.style.padding = '6px 0';
+      btnBack.style.background = '#fef3c7';
+      btnBack.style.border = '1px solid #fcd34d';
+      btnBack.style.borderRadius = '4px';
+      btnBack.style.fontWeight = 'bold';
+      btnBack.style.fontSize = '11px';
+      btnBack.style.color = '#92400e';
+      btnBack.style.cursor = 'pointer';
+      btnBack.onclick = () => {
+        const cur = selectedOption || '';
+        if (cur.length > 0) {
+          selectedOption = cur.slice(0, -1);
+          numInput.value = selectedOption;
+          updateActionButtons();
+        }
+      };
+      keysGrid.appendChild(btnBack);
+
+      // Clear
+      const btnClr = document.createElement('button');
+      btnClr.type = 'button';
+      btnClr.textContent = 'Clear';
+      btnClr.style.gridColumn = 'span 2';
+      btnClr.style.padding = '6px 0';
+      btnClr.style.background = '#fee2e2';
+      btnClr.style.border = '1px solid #fca5a5';
+      btnClr.style.borderRadius = '4px';
+      btnClr.style.fontWeight = 'bold';
+      btnClr.style.fontSize = '11px';
+      btnClr.style.color = '#991b1b';
+      btnClr.style.cursor = 'pointer';
+      btnClr.onclick = () => {
+        selectedOption = null;
+        numInput.value = '';
+        updateActionButtons();
+      };
+      keysGrid.appendChild(btnClr);
+
+      keypadWrap.appendChild(keysGrid);
+      container.appendChild(keypadWrap);
+      elOptionsContainer.appendChild(container);
+
+      elClearResponseBtn.style.display = selectedOption ? 'inline-block' : 'none';
+      return;
+    }
+
     const opts = [
       { key: 'A', num: '1', label: '1)' },
       { key: 'B', num: '2', label: '2)' },
@@ -642,7 +783,8 @@
       console.warn('PDF.js error or fallback needed:', err);
       elPdfLoading.style.display = 'none';
       elPdfCanvasContainer.style.display = 'none';
-      elPdfIframe.src = `${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
+      const startPage = Math.max(1, (testData && testData.pdfStartPage) || 1);
+      elPdfIframe.src = `${pdfUrl}#page=${startPage}&toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
       elPdfIframe.style.display = 'block';
     }
   }
@@ -653,7 +795,10 @@
     const scale = (zoomLevel / 100) * 1.15;
     const pixelRatio = window.devicePixelRatio || 1;
 
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+    const startPage = Math.max(1, (testData && testData.pdfStartPage) || 1);
+    const endPage = Math.min(pdfDoc.numPages, (testData && testData.pdfEndPage) || pdfDoc.numPages);
+
+    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale });

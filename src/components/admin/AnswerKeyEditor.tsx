@@ -1,19 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SubjectConfig } from '@/lib/types';
+import { SubjectConfig, isIntegerQuestion } from '@/lib/types';
 import { RotateCcwIcon } from '@/components/icons/Icons';
 
 interface AnswerKeyEditorProps {
   subjects: SubjectConfig[];
   answerKey: Record<number, string>;
   onChangeAnswerKey: (updatedKey: Record<number, string>) => void;
+  integerQuestions?: number[];
 }
 
 export function AnswerKeyEditor({
   subjects,
   answerKey,
   onChangeAnswerKey,
+  integerQuestions,
 }: AnswerKeyEditorProps) {
   const [bulkText, setBulkText] = useState<string>('');
   const [activeSubjectTab, setActiveSubjectTab] = useState<string>(
@@ -23,7 +25,7 @@ export function AnswerKeyEditor({
 
   const totalQuestions = subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
 
-  // Parse bulk pasted text
+  // Parse bulk pasted text (supports both A-D and numerical values)
   const handleBulkParse = () => {
     if (!bulkText.trim()) {
       setBulkMsg({ text: 'Please enter or paste answer text first.', type: 'error' });
@@ -33,17 +35,17 @@ export function AnswerKeyEditor({
     const newKey = { ...answerKey };
     let filledCount = 0;
 
-    // Pattern 1: Check for "1: A, 2: B" or "1. A, 2. B" or "1-A"
-    const regexPattern = /(\d+)\s*[:.\-)]\s*([A-D])/gi;
+    // Pattern 1: Check for "1: A, 2: B, 21: 5" or "1. A, 2. B, 21. 14" or "1-A"
+    const regexPattern = /(\d+)\s*[:.\-)]\s*([A-D]|[-+]?\d*\.?\d+)/gi;
     let match;
     let foundExplicit = false;
 
     while ((match = regexPattern.exec(bulkText)) !== null) {
       foundExplicit = true;
       const qNum = parseInt(match[1], 10);
-      const opt = match[2].toUpperCase();
+      const val = match[2].trim().toUpperCase();
       if (qNum >= 1 && qNum <= totalQuestions) {
-        newKey[qNum] = opt;
+        newKey[qNum] = val;
         filledCount++;
       }
     }
@@ -52,16 +54,15 @@ export function AnswerKeyEditor({
     if (!foundExplicit) {
       const tokens = bulkText
         .trim()
-        .toUpperCase()
         .replace(/[,;]/g, ' ')
         .split(/\s+/)
-        .filter((t) => /^[A-D]$/.test(t));
+        .filter((t) => /^[A-D]$/i.test(t) || /^[-+]?\d*\.?\d+$/.test(t));
 
       if (tokens.length > 0) {
-        tokens.forEach((opt, idx) => {
+        tokens.forEach((val, idx) => {
           const qNum = idx + 1;
           if (qNum <= totalQuestions) {
-            newKey[qNum] = opt;
+            newKey[qNum] = val.toUpperCase();
             filledCount++;
           }
         });
@@ -77,7 +78,7 @@ export function AnswerKeyEditor({
       setBulkText('');
     } else {
       setBulkMsg({
-        text: 'Could not recognize answer options. Please use format like "A B C D..." or "1: A, 2: B, 3: C..."',
+        text: 'Could not recognize answer options. Please use format like "A B C D..." or "1: A, 2: B... 21: 5..."',
         type: 'error',
       });
     }
@@ -90,6 +91,17 @@ export function AnswerKeyEditor({
       delete newKey[qNum]; // toggle off
     } else {
       newKey[qNum] = opt;
+    }
+    onChangeAnswerKey(newKey);
+  };
+
+  const handleSetNumeric = (qNum: number, value: string) => {
+    const newKey = { ...answerKey };
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      delete newKey[qNum];
+    } else {
+      newKey[qNum] = trimmed;
     }
     onChangeAnswerKey(newKey);
   };
@@ -123,14 +135,14 @@ export function AnswerKeyEditor({
             Fast Bulk Answer Key Paste
           </label>
           <span className="text-[11px] text-blue-700">
-            Supports &ldquo;A B C D...&rdquo; or &ldquo;1: A, 2: B...&rdquo;
+            Supports &ldquo;A B C D...&rdquo; and integers &ldquo;21: 5, 22: 12...&rdquo;
           </span>
         </div>
         <textarea
           rows={2}
           value={bulkText}
           onChange={(e) => setBulkText(e.target.value)}
-          placeholder="Paste answer key here, e.g.: A B C D A B C D ... or 1: A, 2: B, 3: C, 4: D ..."
+          placeholder="Paste answer key here, e.g.: A B C D ... 21: 5, 22: -2.5 ..."
           className="w-full text-xs font-mono p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 bg-white"
         />
         <div className="mt-2 flex items-center justify-between">
@@ -212,6 +224,7 @@ export function AnswerKeyEditor({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {subjectQuestions.map((qNum) => {
             const currentOpt = answerKey[qNum];
+            const isInt = isIntegerQuestion(qNum, integerQuestions);
 
             return (
               <div
@@ -220,26 +233,46 @@ export function AnswerKeyEditor({
                   currentOpt ? 'bg-white border-blue-300 shadow-2xs' : 'bg-gray-100/70 border-gray-200'
                 }`}
               >
-                <span className="font-bold text-gray-800 w-10">Q.{qNum}</span>
                 <div className="flex items-center gap-1">
-                  {['A', 'B', 'C', 'D'].map((opt) => {
-                    const isSelected = currentOpt === opt;
-                    return (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => handleSetOption(qNum, opt)}
-                        className={`w-6 h-6 rounded font-bold text-xs transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-blue-700 text-white shadow-xs scale-105'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:text-blue-700'
-                        }`}
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
+                  <span className="font-bold text-gray-800">Q.{qNum}</span>
+                  {isInt && (
+                    <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1 py-0.2 rounded border border-amber-300">
+                      INT
+                    </span>
+                  )}
                 </div>
+
+                {isInt ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      placeholder="Answer"
+                      value={currentOpt || ''}
+                      onChange={(e) => handleSetNumeric(qNum, e.target.value)}
+                      className="w-24 px-2 py-0.5 text-xs font-bold border border-blue-400 rounded focus:ring-1 focus:ring-blue-500 bg-white text-gray-900 text-center"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    {['A', 'B', 'C', 'D'].map((opt) => {
+                      const isSelected = currentOpt === opt;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => handleSetOption(qNum, opt)}
+                          className={`w-6 h-6 rounded font-bold text-xs transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-700 text-white shadow-xs scale-105'
+                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

@@ -21,9 +21,12 @@ export interface Test {
   totalMarks: number;
   pdfUrl: string;
   pdfFileName: string;
+  pdfStartPage?: number;
+  pdfEndPage?: number;
+  integerQuestions?: number[];
   subjects: SubjectConfig[];
   markingScheme: MarkingScheme;
-  answerKey: Record<number, string>; // questionNumber (1..N) -> 'A' | 'B' | 'C' | 'D'
+  answerKey: Record<number, string>; // questionNumber (1..N) -> 'A' | 'B' | 'C' | 'D' or integer e.g. '5'
   status: 'draft' | 'published';
   createdAt: string;
   updatedAt: string;
@@ -37,11 +40,25 @@ export interface PublicTest {
   totalMarks: number;
   pdfUrl: string;
   pdfFileName: string;
+  pdfStartPage?: number;
+  pdfEndPage?: number;
+  integerQuestions?: number[];
   subjects: SubjectConfig[];
   markingScheme: MarkingScheme;
   totalQuestions: number;
   status: 'published';
   createdAt: string;
+}
+
+export function isIntegerQuestion(qNum: number, integerQuestions?: number[]): boolean {
+  if (integerQuestions && integerQuestions.length > 0) {
+    return integerQuestions.includes(qNum);
+  }
+  return (
+    (qNum >= 21 && qNum <= 25) ||
+    (qNum >= 45 && qNum <= 50) ||
+    (qNum >= 70 && qNum <= 75)
+  );
 }
 
 export type QuestionStatus = 

@@ -415,7 +415,11 @@ export default function ResultPage({
                           : 'text-gray-400 italic'
                       }`}
                     >
-                      {item.selectedOption ? `Option (${item.selectedOption})` : 'Not Attempted'}
+                      {item.selectedOption
+                        ? /^[A-D]$/i.test(item.selectedOption)
+                          ? `Option (${item.selectedOption})`
+                          : `Value: ${item.selectedOption}`
+                        : 'Not Attempted'}
                     </span>
                   </div>
 
@@ -424,7 +428,11 @@ export default function ResultPage({
                       Correct Key
                     </span>
                     <span className="font-bold text-sm text-green-800">
-                      Option ({item.correctOption || 'N/A'})
+                      {item.correctOption
+                        ? /^[A-D]$/i.test(item.correctOption)
+                          ? `Option (${item.correctOption})`
+                          : `Value: ${item.correctOption}`
+                        : 'N/A'}
                     </span>
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Test, TestResult, SubjectResult, QuestionReviewItem, TestSubmissionRequest } from './types';
+import { Test, TestResult, SubjectResult, QuestionReviewItem, TestSubmissionRequest, isIntegerQuestion } from './types';
 
 export function calculateTestResult(
   test: Test,
@@ -68,7 +68,22 @@ export function calculateTestResult(
     const correctOption = rawCorrect;
 
     const isAttempted = !!selectedOption;
-    const isCorrect = isAttempted && normalizeOpt(selectedOption) === normalizeOpt(correctOption);
+    const isIntQ = isIntegerQuestion(qNum, test.integerQuestions);
+    let isCorrect = false;
+
+    if (isAttempted) {
+      if (isIntQ) {
+        const candNum = parseFloat(selectedOption);
+        const corrNum = parseFloat(correctOption);
+        if (!isNaN(candNum) && !isNaN(corrNum)) {
+          isCorrect = Math.abs(candNum - corrNum) < 0.0001;
+        } else {
+          isCorrect = selectedOption.trim() === correctOption.trim();
+        }
+      } else {
+        isCorrect = normalizeOpt(selectedOption) === normalizeOpt(correctOption);
+      }
+    }
     let marksAwarded = 0;
 
     const subStat = subjectResultsMap.get(subject.id)!;

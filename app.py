@@ -148,6 +148,13 @@ def api_admin_create_test():
     except Exception:
         subjects = []
 
+    if not subjects:
+        subjects = [
+            {'id': 'physics', 'name': 'Physics', 'startQuestion': 1, 'endQuestion': 25, 'totalQuestions': 25},
+            {'id': 'chemistry', 'name': 'Chemistry', 'startQuestion': 26, 'endQuestion': 50, 'totalQuestions': 25},
+            {'id': 'mathematics', 'name': 'Mathematics', 'startQuestion': 51, 'endQuestion': 75, 'totalQuestions': 25},
+        ]
+
     pdf_file = request.files.get('pdf')
     pdf_url = ''
     pdf_file_name = ''
@@ -159,6 +166,19 @@ def api_admin_create_test():
         pdf_url = f"/uploads/{filename}"
         pdf_file_name = pdf_file.filename
 
+    marking_scheme = {
+        'correct': int(request.form.get('markingCorrect', 4)),
+        'incorrect': int(request.form.get('markingIncorrect', -1)),
+        'unattempted': int(request.form.get('markingUnattempted', 0)),
+    }
+
+    # Automatically compute maximum marks
+    total_q = sum(s.get('totalQuestions', 0) for s in subjects) or 75
+    total_marks = total_q * marking_scheme.get('correct', 4)
+
+    pdf_start_page = int(request.form.get('pdfStartPage', 1)) if request.form.get('pdfStartPage') else 1
+    pdf_end_page = int(request.form.get('pdfEndPage')) if request.form.get('pdfEndPage') else None
+
     new_test = {
         'id': str(uuid.uuid4()),
         'title': title,
@@ -166,12 +186,10 @@ def api_admin_create_test():
         'totalMarks': total_marks,
         'pdfUrl': pdf_url,
         'pdfFileName': pdf_file_name,
+        'pdfStartPage': pdf_start_page,
+        'pdfEndPage': pdf_end_page,
         'subjects': subjects,
-        'markingScheme': {
-            'correct': int(request.form.get('markingCorrect', 4)),
-            'incorrect': int(request.form.get('markingIncorrect', -1)),
-            'unattempted': int(request.form.get('markingUnattempted', 0)),
-        },
+        'markingScheme': marking_scheme,
         'answerKey': {},
         'status': status,
     }
@@ -195,7 +213,7 @@ def api_admin_update_test(test_id):
         return jsonify({'success': False, 'error': 'Test not found'}), 404
 
     data = request.get_json(silent=True) or {}
-    for key in ['title', 'duration', 'totalMarks', 'subjects', 'markingScheme', 'answerKey', 'status', 'pdfUrl', 'pdfFileName']:
+    for key in ['title', 'duration', 'totalMarks', 'pdfStartPage', 'pdfEndPage', 'integerQuestions', 'subjects', 'markingScheme', 'answerKey', 'status', 'pdfUrl', 'pdfFileName']:
         if key in data:
             existing[key] = data[key]
 

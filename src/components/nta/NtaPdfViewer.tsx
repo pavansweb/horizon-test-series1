@@ -5,6 +5,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 interface NtaPdfViewerProps {
   pdfUrl: string;
   currentQuestionNumber: number;
+  startPage?: number;
+  endPage?: number;
 }
 
 interface PdfJsViewport {
@@ -52,6 +54,8 @@ declare global {
 export function NtaPdfViewer({
   pdfUrl,
   currentQuestionNumber,
+  startPage,
+  endPage,
 }: NtaPdfViewerProps) {
   const [zoomLevel, setZoomLevel] = useState<number>(90);
   const [loading, setLoading] = useState<boolean>(true);
@@ -125,7 +129,10 @@ export function NtaPdfViewer({
       const pixelRatio = window.devicePixelRatio || 1;
       const baseScale = (scaleMultiplier / 100) * 0.85;
 
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const firstPage = Math.max(1, startPage || 1);
+      const lastPage = Math.min(pdf.numPages, endPage || pdf.numPages);
+
+      for (let pageNum = firstPage; pageNum <= lastPage; pageNum++) {
         try {
           const page = await pdf.getPage(pageNum);
           const viewport = page.getViewport({ scale: baseScale });
@@ -167,7 +174,7 @@ export function NtaPdfViewer({
         }
       }
     },
-    []
+    [startPage, endPage]
   );
 
   useEffect(() => {
@@ -221,7 +228,8 @@ export function NtaPdfViewer({
     }
   }, [zoomLevel, renderAllPages, useFallback]);
 
-  const fallbackUrl = `${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
+  const firstPage = Math.max(1, startPage || 1);
+  const fallbackUrl = `${pdfUrl}#page=${firstPage}&toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
 
   return (
     <div
