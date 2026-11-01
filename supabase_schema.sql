@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS public.jee_tests (
   "totalMarks" INTEGER NOT NULL DEFAULT 300,
   "pdfUrl" TEXT NOT NULL,
   "pdfFileName" TEXT,
+  "pdfStartPage" INTEGER DEFAULT 1,
+  "pdfEndPage" INTEGER,
+  "integerQuestions" JSONB DEFAULT '[]'::jsonb,
   subjects JSONB NOT NULL DEFAULT '[]'::jsonb,
   "markingScheme" JSONB NOT NULL DEFAULT '{"correct": 4, "incorrect": -1, "unattempted": 0}'::jsonb,
   "answerKey" JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -22,6 +25,12 @@ CREATE TABLE IF NOT EXISTS public.jee_tests (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Quick migration for existing tables:
+ALTER TABLE public.jee_tests 
+  ADD COLUMN IF NOT EXISTS "integerQuestions" JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS "pdfStartPage" INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS "pdfEndPage" INTEGER;
 
 -- 2. Create jee_submissions table
 CREATE TABLE IF NOT EXISTS public.jee_submissions (

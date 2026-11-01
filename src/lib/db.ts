@@ -52,6 +52,72 @@ async function saveTestLocally(test: Test): Promise<void> {
   await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
 }
 
+type DbRow = Record<string, unknown>;
+
+/**
+ * Normalizes test row from Supabase or local storage.
+ * Reads integerQuestions, pdfStartPage, and pdfEndPage from top-level columns
+ * OR falls back to embedded markingScheme properties if the columns don't exist in Supabase schema.
+ */
+function hydrateTest(row: DbRow | Test): Test {
+  const r = row as Record<string, unknown>;
+  const markingScheme = (r.markingScheme as Record<string, unknown>) || {};
+  return {
+    ...(r as unknown as Test),
+    id: (r.id as string) || crypto.randomUUID(),
+    title: (r.title as string) || 'Untitled Test',
+    duration: typeof r.duration === 'number' ? r.duration : 180,
+    totalMarks: typeof r.totalMarks === 'number' ? r.totalMarks : 300,
+    pdfUrl: (r.pdfUrl as string) || '',
+    pdfFileName: (r.pdfFileName as string) || '',
+    subjects: Array.isArray(r.subjects) ? (r.subjects as Test['subjects']) : [],
+    markingScheme: (r.markingScheme as Test['markingScheme']) || { correct: 4, incorrect: -1, unattempted: 0 },
+    answerKey: (r.answerKey as Test['answerKey']) || {},
+    status: (r.status as Test['status']) || 'draft',
+    createdAt: (r.createdAt as string) || new Date().toISOString(),
+    updatedAt: (r.updatedAt as string) || new Date().toISOString(),
+    integerQuestions:
+      Array.isArray(r.integerQuestions) && r.integerQuestions.length > 0
+        ? (r.integerQuestions as number[])
+        : Array.isArray(markingScheme._integerQuestions)
+        ? (markingScheme._integerQuestions as number[])
+        : undefined,
+    pdfStartPage:
+      r.pdfStartPage !== undefined && r.pdfStartPage !== null
+        ? Number(r.pdfStartPage)
+        : markingScheme._pdfStartPage !== undefined && markingScheme._pdfStartPage !== null
+        ? Number(markingScheme._pdfStartPage)
+        : 1,
+    pdfEndPage:
+      r.pdfEndPage !== undefined && r.pdfEndPage !== null
+        ? Number(r.pdfEndPage)
+        : markingScheme._pdfEndPage !== undefined && markingScheme._pdfEndPage !== null
+        ? Number(markingScheme._pdfEndPage)
+        : undefined,
+  };
+}
+
+/**
+ * Prepares payload for Supabase.
+ * If fallbackMode is true, strips top-level columns that might not exist in older schemas
+ * (integerQuestions, pdfStartPage, pdfEndPage) and embeds them safely in markingScheme JSONB.
+ */
+function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRow {
+  if (!fallbackMode) {
+    return { ...test } as unknown as DbRow;
+  }
+  const { integerQuestions, pdfStartPage, pdfEndPage, ...base } = test;
+  return {
+    ...base,
+    markingScheme: {
+      ...test.markingScheme,
+      _integerQuestions: integerQuestions || [],
+      _pdfStartPage: pdfStartPage || 1,
+      _pdfEndPage: pdfEndPage || null,
+    },
+  } as unknown as DbRow;
+}
+
 /**
  * Reads all tests from storage (Supabase or Local JSON)
  */
@@ -66,7 +132,7 @@ export async function getAllTests(includeDrafts: boolean = false): Promise<Test[
 
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
-        return data as Test[];
+        return (data as unknown as DbRow[]).map(hydrateTest);
       }
       if (error) {
         console.warn('Supabase DB fetch error, falling back to local file:', error.message);
@@ -77,7 +143,7 @@ export async function getAllTests(includeDrafts: boolean = false): Promise<Test[
   }
 
   // Local file storage fallback
-  return getLocalTests(includeDrafts);
+  return (await getLocalTests(includeDrafts)).map(hydrateTest);
 }
 
 /**
@@ -93,7 +159,7 @@ export async function getTestById(id: string): Promise<Test | null> {
         .maybeSingle();
 
       if (!error && data) {
-        return data as Test;
+        return hydrateTest(data as unknown as DbRow);
       }
       if (error) {
         console.warn('Supabase DB error fetching test:', error.message);
@@ -104,7 +170,8 @@ export async function getTestById(id: string): Promise<Test | null> {
   }
 
   const tests = await getLocalTests(true);
-  return tests.find((t) => t.id === id) || null;
+  const found = tests.find((t) => t.id === id);
+  return found ? hydrateTest(found) : null;
 }
 
 /**
@@ -156,18 +223,47 @@ export async function createTest(
   // Supabase:
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data: saved, error } = await supabase
+      let savedRow: DbRow | null = null;
+
+      // 1. Try standard insert with all dedicated columns
+      const firstAttempt = await supabase
         .from('jee_tests')
-        .insert(newTest)
+        .insert(prepareSupabasePayload(newTest, false))
         .select()
         .maybeSingle();
 
-      if (!error && saved) {
-        await saveTestLocally(saved as Test);
-        return saved as Test;
+      if (!firstAttempt.error && firstAttempt.data) {
+        savedRow = firstAttempt.data as unknown as DbRow;
+      } else if (firstAttempt.error) {
+        // If error is due to missing columns in Supabase schema cache:
+        const isMissingCol =
+          firstAttempt.error.message.includes('column') ||
+          firstAttempt.error.message.includes('schema cache');
+
+        if (isMissingCol) {
+          console.warn(
+            'Supabase schema missing new columns (e.g. integerQuestions). Retrying insert with embedded JSON attributes...'
+          );
+          const fallbackAttempt = await supabase
+            .from('jee_tests')
+            .insert(prepareSupabasePayload(newTest, true))
+            .select()
+            .maybeSingle();
+
+          if (!fallbackAttempt.error && fallbackAttempt.data) {
+            savedRow = fallbackAttempt.data as unknown as DbRow;
+          } else if (fallbackAttempt.error) {
+            console.warn('Supabase DB fallback insert error, saving to local file:', fallbackAttempt.error.message);
+          }
+        } else {
+          console.warn('Supabase DB insert error, saving to local file:', firstAttempt.error.message);
+        }
       }
-      if (error) {
-        console.warn('Supabase DB insert error, saving to local file:', error.message);
+
+      if (savedRow) {
+        const hydrated = hydrateTest(savedRow);
+        await saveTestLocally(hydrated);
+        return hydrated;
       }
     } catch (err) {
       console.warn('Supabase DB insert error, saving to local file:', err);
@@ -194,19 +290,47 @@ export async function updateTest(id: string, updates: Partial<Test>): Promise<Te
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data: saved, error } = await supabase
+      let savedRow: DbRow | null = null;
+
+      const firstAttempt = await supabase
         .from('jee_tests')
-        .update(updatedTest)
+        .update(prepareSupabasePayload(updatedTest, false))
         .eq('id', id)
         .select()
         .maybeSingle();
 
-      if (!error && saved) {
-        await saveTestLocally(saved as Test);
-        return saved as Test;
+      if (!firstAttempt.error && firstAttempt.data) {
+        savedRow = firstAttempt.data as unknown as DbRow;
+      } else if (firstAttempt.error) {
+        const isMissingCol =
+          firstAttempt.error.message.includes('column') ||
+          firstAttempt.error.message.includes('schema cache');
+
+        if (isMissingCol) {
+          console.warn(
+            'Supabase schema missing new columns (e.g. integerQuestions). Retrying update with embedded JSON attributes...'
+          );
+          const fallbackAttempt = await supabase
+            .from('jee_tests')
+            .update(prepareSupabasePayload(updatedTest, true))
+            .eq('id', id)
+            .select()
+            .maybeSingle();
+
+          if (!fallbackAttempt.error && fallbackAttempt.data) {
+            savedRow = fallbackAttempt.data as unknown as DbRow;
+          } else if (fallbackAttempt.error) {
+            console.warn('Supabase DB fallback update error, saving to local file:', fallbackAttempt.error.message);
+          }
+        } else {
+          console.warn('Supabase DB update error, saving to local file:', firstAttempt.error.message);
+        }
       }
-      if (error) {
-        console.warn('Supabase DB update error, saving to local file:', error.message);
+
+      if (savedRow) {
+        const hydrated = hydrateTest(savedRow);
+        await saveTestLocally(hydrated);
+        return hydrated;
       }
     } catch (err) {
       console.warn('Supabase DB update error, saving to local file:', err);
