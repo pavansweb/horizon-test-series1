@@ -1,0 +1,698 @@
+/**
+ * Horizon Test Series - CBT Examination Engine
+ */
+
+(function () {
+  'use strict';
+
+  // Elements
+  const elHeaderTimer = document.getElementById('header-timer');
+  const elQuestionNumber = document.getElementById('current-q-number');
+  const elPdfContainer = document.getElementById('pdf-scroll-container');
+  const elPdfCanvasContainer = document.getElementById('pdf-canvas-container');
+  const elPdfIframe = document.getElementById('pdf-fallback-iframe');
+  const elPdfLoading = document.getElementById('pdf-loading-indicator');
+  const elZoomLevel = document.getElementById('zoom-level-text');
+  const elOptionsContainer = document.getElementById('options-container');
+  const elClearResponseBtn = document.getElementById('clear-response-btn');
+  const elBtnSaveNext = document.getElementById('btn-save-next');
+  const elBtnSaveMark = document.getElementById('btn-save-mark');
+  const elBtnMarkNext = document.getElementById('btn-mark-next');
+  const elBtnPrev = document.getElementById('btn-prev');
+  const elBtnNext = document.getElementById('btn-next');
+  const elBtnSubmit = document.getElementById('btn-submit');
+  const elSubjectTabs = document.getElementById('subject-tabs');
+  const elPaletteGrid = document.getElementById('palette-grid');
+  const elSplitterToggle = document.getElementById('splitter-toggle-btn');
+  const elRightPalette = document.getElementById('right-palette-panel');
+  const elLeftArea = document.getElementById('left-question-panel');
+
+  // Modals
+  const elSubmitModal = document.getElementById('submit-modal');
+  const elSubmitSummaryTbody = document.getElementById('submit-summary-tbody');
+  const elModalCloseBtn = document.getElementById('modal-close-btn');
+  const elModalCancelBtn = document.getElementById('modal-cancel-btn');
+  const elModalConfirmBtn = document.getElementById('modal-confirm-btn');
+
+  // State
+  let testData = null;
+  let currentQuestion = 1;
+  let activeSubjectId = '';
+  let selectedOption = null;
+  let candidateResponses = {}; // qNum -> { selectedOption, status, visited }
+  let timeRemaining = 180 * 60;
+  let timerInterval = null;
+  let isPaletteCollapsed = false;
+  let isSubmitting = false;
+  let zoomLevel = 90;
+  let pdfDoc = null;
+
+  const storageKey = `horizon_cbt_${window.TEST_ID}`;
+
+  // Initialize
+  async function init() {
+    try {
+      const res = await fetch(`/api/tests/${window.TEST_ID}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to load test paper');
+        return;
+      }
+
+      testData = data.test;
+      const totalQ = testData.totalQuestions || 90;
+
+      // Restore session or init fresh
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.candidateResponses) candidateResponses = parsed.candidateResponses;
+          if (parsed.timeRemaining !== undefined) timeRemaining = Math.max(parsed.timeRemaining, 10);
+          if (parsed.currentQuestion) currentQuestion = parsed.currentQuestion;
+          if (parsed.activeSubjectId) activeSubjectId = parsed.activeSubjectId;
+          if (parsed.candidateName) {
+            window.CANDIDATE_NAME = parsed.candidateName;
+            const elName = document.getElementById('candidate-name-display');
+            if (elName) elName.textContent = parsed.candidateName;
+          }
+        } catch (e) {
+          console.warn('Failed to parse saved session', e);
+        }
+      } else {
+        timeRemaining = (testData.duration || 180) * 60;
+        candidateResponses[1] = { selectedOption: null, status: 'not_answered', visited: true };
+        if (testData.subjects && testData.subjects[0]) {
+          activeSubjectId = testData.subjects[0].id;
+        }
+      }
+
+      // Render subjects
+      renderSubjectTabs();
+
+      // Initialize theme
+      initTheme();
+
+      // Start timer
+      startTimer();
+
+      // Load PDF
+      initPdfViewer(testData.pdfUrl);
+
+      // Render question view
+      navigateToQuestion(currentQuestion, false);
+
+      // Bind events
+      bindEvents();
+    } catch (err) {
+      console.error('Initialization error:', err);
+      alert('Network error loading test.');
+    }
+  }
+
+  // Theme Management
+  function initTheme() {
+    const saved = localStorage.getItem('cbt_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = saved || (prefersDark ? 'dark' : 'light');
+    applyTheme(initialTheme);
+
+    const toggleBtn = document.getElementById('theme-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+        const newTheme = isDark ? 'light' : 'dark';
+        applyTheme(newTheme);
+        localStorage.setItem('cbt_theme', newTheme);
+        renderOptions();
+        renderPalette();
+      };
+    }
+  }
+
+  function applyTheme(theme) {
+    const isDark = theme === 'dark';
+    if (isDark) {
+      document.body.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.body.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+
+    const iconSun = document.getElementById('theme-icon-sun');
+    const iconMoon = document.getElementById('theme-icon-moon');
+    if (iconSun && iconMoon) {
+      iconSun.style.display = isDark ? 'block' : 'none';
+      iconMoon.style.display = isDark ? 'none' : 'block';
+    }
+  }
+
+  // Timer
+  function formatTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `${h}:${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    elHeaderTimer.textContent = formatTime(timeRemaining);
+
+    timerInterval = setInterval(() => {
+      if (timeRemaining <= 1) {
+        clearInterval(timerInterval);
+        elHeaderTimer.textContent = '0:0:00';
+        handleFinalSubmit();
+        return;
+      }
+      timeRemaining--;
+      elHeaderTimer.textContent = formatTime(timeRemaining);
+
+      // Auto-save every 5 seconds
+      if (timeRemaining % 5 === 0) {
+        saveProgress();
+      }
+    }, 1000);
+  }
+
+  function saveProgress() {
+    if (!testData) return;
+    const sessionData = {
+      testId: window.TEST_ID,
+      candidateName: window.CANDIDATE_NAME || 'JEE Aspirant',
+      candidateResponses,
+      timeRemaining,
+      currentQuestion,
+      activeSubjectId,
+      lastSaved: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(sessionData));
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  // Subject Tabs
+  function renderSubjectTabs() {
+    if (!testData || !testData.subjects) return;
+    elSubjectTabs.innerHTML = '';
+
+    testData.subjects.forEach((sub) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = sub.name;
+      btn.className = 'subject-tab-btn';
+      const isActive = sub.id === activeSubjectId;
+
+      btn.style.padding = '7px 18px';
+      btn.style.fontSize = '11px';
+      btn.style.fontWeight = '700';
+      btn.style.cursor = 'pointer';
+      btn.style.border = 'none';
+      btn.style.borderRight = '1px solid #2b568c';
+      btn.style.letterSpacing = '0.5px';
+      btn.style.textTransform = 'uppercase';
+      btn.style.background = isActive ? '#132f54' : 'transparent';
+      btn.style.color = isActive ? '#ffffff' : '#dbeafe';
+      btn.style.outline = isActive ? '1px solid #3b71b8' : 'none';
+      btn.style.whiteSpace = 'nowrap';
+
+      btn.onclick = () => {
+        activeSubjectId = sub.id;
+        renderSubjectTabs();
+        navigateToQuestion(sub.startQuestion);
+      };
+
+      elSubjectTabs.appendChild(btn);
+    });
+  }
+
+  // Question Navigation
+  function navigateToQuestion(qNum, autoSave = true) {
+    const totalQ = testData.totalQuestions || 90;
+    if (qNum < 1 || qNum > totalQ) return;
+
+    currentQuestion = qNum;
+    elQuestionNumber.textContent = qNum;
+
+    // Check existing response
+    const existing = candidateResponses[qNum];
+    if (existing) {
+      selectedOption = existing.selectedOption;
+    } else {
+      selectedOption = null;
+      candidateResponses[qNum] = { selectedOption: null, status: 'not_answered', visited: true };
+    }
+
+    // Update active subject if needed
+    for (const sub of testData.subjects || []) {
+      if (qNum >= sub.startQuestion && qNum <= sub.endQuestion) {
+        if (sub.id !== activeSubjectId) {
+          activeSubjectId = sub.id;
+          renderSubjectTabs();
+        }
+        break;
+      }
+    }
+
+    // Update options radio
+    renderOptions();
+
+    // Update button states
+    updateActionButtons();
+
+    // Re-render palette
+    renderPalette();
+
+    if (autoSave) saveProgress();
+  }
+
+  // Render Options 1), 2), 3), 4)
+  function renderOptions() {
+    const opts = [
+      { key: 'A', num: '1', label: '1)' },
+      { key: 'B', num: '2', label: '2)' },
+      { key: 'C', num: '3', label: '3)' },
+      { key: 'D', num: '4', label: '4)' },
+    ];
+
+    elOptionsContainer.innerHTML = '';
+    const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+
+    opts.forEach((opt) => {
+      const isSelected = selectedOption === opt.key || selectedOption === opt.num;
+
+      const label = document.createElement('label');
+      label.className = 'flex items-center gap-3 cursor-pointer';
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '12px';
+      label.style.padding = '3px 0';
+      label.style.width = 'fit-content';
+      label.style.cursor = 'pointer';
+
+      // Radio circle
+      const circle = document.createElement('div');
+      circle.className = `option-circle ${isSelected ? 'selected' : ''}`;
+      circle.style.width = '22px';
+      circle.style.height = '22px';
+      circle.style.borderRadius = '50%';
+      circle.style.border = isSelected
+        ? `2.5px solid ${isDark ? '#60a5fa' : '#1e4273'}`
+        : `2.5px solid ${isDark ? '#64748b' : '#64748b'}`;
+      circle.style.display = 'flex';
+      circle.style.alignItems = 'center';
+      circle.style.justifyContent = 'center';
+      circle.style.background = isDark ? '#1e293b' : '#ffffff';
+      circle.style.flexShrink = '0';
+
+      if (isSelected) {
+        const dot = document.createElement('div');
+        dot.style.width = '11px';
+        dot.style.height = '11px';
+        dot.style.borderRadius = '50%';
+        dot.style.background = isDark ? '#60a5fa' : '#1e4273';
+        circle.appendChild(dot);
+      }
+
+      const text = document.createElement('span');
+      text.className = 'option-label-text';
+      text.textContent = opt.label;
+      text.style.fontSize = '16px';
+      text.style.fontWeight = isSelected ? '700' : '600';
+      text.style.color = isSelected
+        ? (isDark ? '#93c5fd' : '#0f172a')
+        : (isDark ? '#e2e8f0' : '#1e293b');
+
+      label.appendChild(circle);
+      label.appendChild(text);
+
+      label.onclick = () => {
+        selectedOption = opt.key;
+        renderOptions();
+        updateActionButtons();
+      };
+
+      elOptionsContainer.appendChild(label);
+    });
+
+    elClearResponseBtn.style.display = selectedOption ? 'inline-block' : 'none';
+  }
+
+  function updateActionButtons() {
+    const totalQ = testData.totalQuestions || 75;
+    elBtnPrev.disabled = currentQuestion <= 1;
+    elBtnNext.disabled = currentQuestion >= totalQ;
+
+    // Save & Mark for review enabled only when option selected
+    elBtnSaveMark.disabled = !selectedOption;
+    elBtnSaveMark.style.background = selectedOption ? '#d9822b' : '#e0e0e0';
+    elBtnSaveMark.style.cursor = selectedOption ? 'pointer' : 'not-allowed';
+    elBtnSaveMark.style.color = selectedOption ? '#ffffff' : '#9e9e9e';
+  }
+
+  // Render 9-Column Question Palette with section line-breaks (e.g. 26 starts on new row)
+  function renderPalette() {
+    if (!testData) return;
+    elPaletteGrid.innerHTML = '';
+
+    // Determine section ranges: either from testData.subjects or chunks of 25
+    let sections = [];
+    if (testData.subjects && testData.subjects.length > 0) {
+      sections = testData.subjects.map((s) => ({
+        name: s.name,
+        start: s.startQuestion,
+        end: s.endQuestion,
+      }));
+    } else {
+      const totalQ = testData.totalQuestions || 75;
+      for (let s = 1; s <= totalQ; s += 25) {
+        sections.push({
+          start: s,
+          end: Math.min(s + 24, totalQ),
+        });
+      }
+    }
+
+    sections.forEach((sec, secIdx) => {
+      const secGrid = document.createElement('div');
+      secGrid.style.display = 'grid';
+      secGrid.style.gridTemplateColumns = 'repeat(9, minmax(0, 1fr))';
+      secGrid.style.gap = '5px';
+      secGrid.style.marginBottom = secIdx < sections.length - 1 ? '10px' : '0';
+
+      for (let q = sec.start; q <= sec.end; q++) {
+        const resp = candidateResponses[q];
+        const status = resp ? resp.status : 'not_visited';
+        const isActive = q === currentQuestion;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = q;
+        btn.className = `palette-badge badge-${status.replace(/_/g, '-')}`;
+        btn.style.width = '34px';
+        btn.style.height = '34px';
+        btn.style.fontSize = '12.5px';
+        btn.style.fontWeight = '700';
+        btn.style.display = 'inline-flex';
+        btn.style.alignItems = 'center';
+        btn.style.justifyContent = 'center';
+        btn.style.cursor = 'pointer';
+        btn.style.position = 'relative';
+        btn.style.padding = '0';
+        btn.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+
+        if (isActive) {
+          const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+          btn.style.outline = isDark ? '2.5px solid #60a5fa' : '2.5px solid #2563eb';
+          btn.style.outlineOffset = '1px';
+        }
+
+        btn.onclick = () => {
+          navigateToQuestion(q);
+        };
+
+        secGrid.appendChild(btn);
+      }
+
+      elPaletteGrid.appendChild(secGrid);
+    });
+  }
+
+  // Action Button Handlers
+  function handleSaveAndNext() {
+    const newStatus = selectedOption ? 'answered' : 'not_answered';
+    candidateResponses[currentQuestion] = {
+      selectedOption: selectedOption,
+      status: newStatus,
+      visited: true,
+    };
+
+    const totalQ = testData.totalQuestions || 90;
+    if (currentQuestion < totalQ) {
+      navigateToQuestion(currentQuestion + 1);
+    } else {
+      renderPalette();
+      saveProgress();
+    }
+  }
+
+  function handleSaveAndMarkForReview() {
+    if (!selectedOption) return;
+    candidateResponses[currentQuestion] = {
+      selectedOption: selectedOption,
+      status: 'answered_and_marked',
+      visited: true,
+    };
+
+    const totalQ = testData.totalQuestions || 90;
+    if (currentQuestion < totalQ) {
+      navigateToQuestion(currentQuestion + 1);
+    } else {
+      renderPalette();
+      saveProgress();
+    }
+  }
+
+  function handleMarkForReviewAndNext() {
+    const newStatus = selectedOption ? 'answered_and_marked' : 'marked_for_review';
+    candidateResponses[currentQuestion] = {
+      selectedOption: selectedOption,
+      status: newStatus,
+      visited: true,
+    };
+
+    const totalQ = testData.totalQuestions || 90;
+    if (currentQuestion < totalQ) {
+      navigateToQuestion(currentQuestion + 1);
+    } else {
+      renderPalette();
+      saveProgress();
+    }
+  }
+
+  function handleClearResponse() {
+    selectedOption = null;
+    candidateResponses[currentQuestion] = {
+      selectedOption: null,
+      status: 'not_answered',
+      visited: true,
+    };
+    renderOptions();
+    updateActionButtons();
+    renderPalette();
+    saveProgress();
+  }
+
+  // Submit Modal Summary
+  function openSubmitModal() {
+    if (!testData) return;
+    elSubmitSummaryTbody.innerHTML = '';
+
+    (testData.subjects || []).forEach((sub) => {
+      let ans = 0, notAns = 0, marked = 0, ansMarked = 0, notVis = 0;
+
+      for (let q = sub.startQuestion; q <= sub.endQuestion; q++) {
+        const resp = candidateResponses[q];
+        const st = resp ? resp.status : 'not_visited';
+        if (st === 'answered') ans++;
+        else if (st === 'not_answered') notAns++;
+        else if (st === 'marked_for_review') marked++;
+        else if (st === 'answered_and_marked') ansMarked++;
+        else notVis++;
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700; text-align: left;">${sub.name}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center;">${sub.totalQuestions}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; color: #2e7d32; font-weight: 700;">${ans}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; color: #c62828;">${notAns}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; color: #7b1fa2;">${marked}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; color: #512da8; font-weight: 700;">${ansMarked}</td>
+        <td style="padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; color: #6b7280;">${notVis}</td>
+      `;
+      elSubmitSummaryTbody.appendChild(tr);
+    });
+
+    elSubmitModal.style.display = 'flex';
+  }
+
+  function closeSubmitModal() {
+    elSubmitModal.style.display = 'none';
+  }
+
+  async function handleFinalSubmit() {
+    if (isSubmitting || !testData) return;
+    try {
+      isSubmitting = true;
+      elModalConfirmBtn.textContent = 'Submitting...';
+      elModalConfirmBtn.disabled = true;
+
+      const answers = {};
+      const totalQ = testData.totalQuestions || 90;
+      for (let q = 1; q <= totalQ; q++) {
+        answers[q] = candidateResponses[q]?.selectedOption || null;
+      }
+
+      const timeTaken = (testData.duration || 180) * 60 - timeRemaining;
+
+      const res = await fetch(`/api/tests/${window.TEST_ID}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateResponses: answers,
+          timeTakenSeconds: Math.max(timeTaken, 0),
+          candidateName: window.CANDIDATE_NAME || 'JEE Aspirant',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to submit test');
+        isSubmitting = false;
+        elModalConfirmBtn.textContent = 'Yes, Submit Test';
+        elModalConfirmBtn.disabled = false;
+        return;
+      }
+
+      // Success - clear saved session and redirect
+      localStorage.removeItem(storageKey);
+      window.location.href = `/result/${data.submissionId}`;
+    } catch (err) {
+      console.error('Submission failed', err);
+      alert('Network error while submitting test.');
+      isSubmitting = false;
+      elModalConfirmBtn.textContent = 'Yes, Submit Test';
+      elModalConfirmBtn.disabled = false;
+    }
+  }
+
+  // PDF Viewer initialization
+  async function initPdfViewer(pdfUrl) {
+    try {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const loadingTask = window.pdfjsLib.getDocument({
+          url: pdfUrl,
+          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+          cMapPacked: true,
+        });
+
+        pdfDoc = await loadingTask.promise;
+        elPdfLoading.style.display = 'none';
+        renderPdfPages();
+      } else {
+        throw new Error('PDF.js not loaded, switching to iframe');
+      }
+    } catch (err) {
+      console.warn('PDF.js error or fallback needed:', err);
+      elPdfLoading.style.display = 'none';
+      elPdfCanvasContainer.style.display = 'none';
+      elPdfIframe.src = `${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
+      elPdfIframe.style.display = 'block';
+    }
+  }
+
+  async function renderPdfPages() {
+    if (!pdfDoc) return;
+    elPdfCanvasContainer.innerHTML = '';
+    const scale = (zoomLevel / 100) * 1.15;
+    const pixelRatio = window.devicePixelRatio || 1;
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale });
+
+        const isDark = document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark';
+        const pageWrapper = document.createElement('div');
+        pageWrapper.style.margin = '0 auto 8px auto';
+        pageWrapper.style.boxShadow = isDark ? '0 2px 8px rgba(0,0,0,0.6)' : '0 1px 3px rgba(0,0,0,0.18)';
+        pageWrapper.style.border = isDark ? '1px solid #334155' : '1px solid #e2e8f0';
+        pageWrapper.style.backgroundColor = '#ffffff';
+        pageWrapper.style.width = `${viewport.width}px`;
+        pageWrapper.style.maxWidth = '100%';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width * pixelRatio;
+        canvas.height = viewport.height * pixelRatio;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        canvas.style.maxWidth = '100%';
+        canvas.style.display = 'block';
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(pixelRatio, pixelRatio);
+          pageWrapper.appendChild(canvas);
+          elPdfCanvasContainer.appendChild(pageWrapper);
+
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+      } catch (e) {
+        console.warn('Error rendering page', pageNum, e);
+      }
+    }
+  }
+
+  // Event bindings
+  function bindEvents() {
+    elBtnSaveNext.onclick = handleSaveAndNext;
+    elBtnSaveMark.onclick = handleSaveAndMarkForReview;
+    elBtnMarkNext.onclick = handleMarkForReviewAndNext;
+    elBtnPrev.onclick = () => navigateToQuestion(currentQuestion - 1);
+    elBtnNext.onclick = () => navigateToQuestion(currentQuestion + 1);
+    elClearResponseBtn.onclick = handleClearResponse;
+    elBtnSubmit.onclick = openSubmitModal;
+
+    elModalCloseBtn.onclick = closeSubmitModal;
+    elModalCancelBtn.onclick = closeSubmitModal;
+    elModalConfirmBtn.onclick = handleFinalSubmit;
+
+    // Circular blue arrows: scroll PDF container smoothly
+    document.getElementById('btn-scroll-down').onclick = () => {
+      elPdfContainer.scrollBy({ top: 140, behavior: 'smooth' });
+    };
+    document.getElementById('btn-scroll-up').onclick = () => {
+      elPdfContainer.scrollBy({ top: -140, behavior: 'smooth' });
+    };
+
+    // Zoom controls
+    document.getElementById('btn-zoom-in').onclick = () => {
+      zoomLevel = Math.min(150, zoomLevel + 10);
+      elZoomLevel.textContent = `${zoomLevel}%`;
+      renderPdfPages();
+    };
+    document.getElementById('btn-zoom-out').onclick = () => {
+      zoomLevel = Math.max(50, zoomLevel - 10);
+      elZoomLevel.textContent = `${zoomLevel}%`;
+      renderPdfPages();
+    };
+
+    // Splitter Collapse Toggle
+    elSplitterToggle.onclick = () => {
+      isPaletteCollapsed = !isPaletteCollapsed;
+      if (isPaletteCollapsed) {
+        elRightPalette.style.display = 'none';
+        elLeftArea.style.flex = '1 1 100%';
+        elSplitterToggle.textContent = '<';
+        elSplitterToggle.title = 'Show Question Palette';
+      } else {
+        elRightPalette.style.display = 'block';
+        elLeftArea.style.flex = '1 1 68%';
+        elSplitterToggle.textContent = '>';
+        elSplitterToggle.title = 'Hide Question Palette';
+      }
+    };
+  }
+
+  // Boot
+  document.addEventListener('DOMContentLoaded', init);
+})();

@@ -3,33 +3,224 @@
 @tailwind utilities;
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --nta-blue-dark: #1a237e;
+  --nta-blue-header: #1565c0;
+  --nta-blue-medium: #1976d2;
+  --nta-blue-light: #e3f2fd;
+  --nta-gray-bg: #f5f5f5;
+  --nta-gray-border: #bdbdbd;
+  --nta-gray-light: #eeeeee;
+  --nta-green: #4caf50;
+  --nta-green-dark: #388e3c;
+  --nta-red: #e53935;
+  --nta-red-dark: #c62828;
+  --nta-purple: #7b1fa2;
+  --nta-purple-dark: #6a1b9a;
+  --nta-orange: #ef6c00;
+  --nta-white: #ffffff;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: #212121;
+  background: var(--nta-gray-bg);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
-/* Custom scrollbar for Question Palette and PDF areas */
+/* NTA-style scrollbar - thin and unobtrusive */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #e0e0e0;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #9e9e9e;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #757575;
+}
+
+/* NTA palette badge shapes */
+.nta-badge-not-visited {
+  background-color: #e0e0e0;
+  color: #424242;
+  border: 1px solid #9e9e9e;
+}
+
+.nta-badge-not-answered {
+  background-color: var(--nta-red);
+  color: white;
+  clip-path: polygon(10% 0%, 90% 0%, 100% 10%, 100% 100%, 0% 100%, 0% 10%);
+}
+
+.nta-badge-answered {
+  background-color: var(--nta-green);
+  color: white;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%);
+}
+
+.nta-badge-marked {
+  background-color: var(--nta-purple);
+  color: white;
+  border-radius: 50%;
+}
+
+.nta-badge-answered-marked {
+  background-color: var(--nta-purple);
+  color: white;
+  border-radius: 50%;
+}
+
+/* Prevent text selection on exam interface */
+.nta-exam-ui {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* NTA button base */
+.nta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid;
+  cursor: pointer;
+  text-transform: none;
+  white-space: nowrap;
+  transition: background-color 0.1s;
+  border-radius: 2px;
+}
+
+.nta-btn:active {
+  transform: scale(0.98);
+}
+
+html.dark, body.dark, [data-theme="dark"] {
+  --nta-gray-bg: #090d16;
+  --nta-white: #1e293b;
+  --nta-gray-light: #0f172a;
+  --nta-gray-border: #334155;
+}
+
+html.dark body {
+  background: #090d16;
+  color: #f1f5f9;
+}
+
+html.dark .nta-badge-not-visited {
+  background-color: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+html.dark .nta-exam-ui {
+  background: #090d16 !important;
+}
+
+html.dark .outer-canvas-wrap {
+  background: #0a0f1d !important;
+}
+
+html.dark .big-box-wrap {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45) !important;
+}
+
+html.dark .left-col-wrap {
+  background: #1e293b !important;
+}
+
+html.dark .palette-wrap {
+  background: #1e293b !important;
+  border-left-color: #334155 !important;
+}
+
+html.dark .pdf-header-bar {
+  background: #1e293b !important;
+  border-bottom-color: #334155 !important;
+}
+
+html.dark .question-num-text {
+  color: #f87171 !important;
+}
+
+html.dark .options-panel-wrap {
+  background: #1e293b !important;
+  border-bottom-color: #334155 !important;
+}
+
+html.dark .option-radio-circle {
+  background: #1e293b !important;
+  border-color: #64748b !important;
+}
+
+html.dark .option-radio-circle.selected {
+  border-color: #60a5fa !important;
+}
+
+html.dark .option-radio-dot {
+  background: #60a5fa !important;
+}
+
+html.dark .option-radio-label {
+  color: #f1f5f9 !important;
+}
+
+html.dark .action-bar-wrap {
+  background: #1e293b !important;
+}
+
+html.dark .palette-container-wrap {
+  background: #1e293b !important;
+  border-left-color: #334155 !important;
+}
+
+html.dark .legend-wrap {
+  border-bottom-color: #334155 !important;
+}
+
+html.dark .palette-scroll-wrap {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+/* Subject tab active indicator */
+.nta-subject-tab-active {
+  background-color: #1565c0;
+  color: white;
+  border-bottom: 3px solid #0d47a1;
+}
+
+.nta-subject-tab-inactive {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border-bottom: 3px solid transparent;
+}
+
+.nta-subject-tab-inactive:hover {
+  background-color: #bbdefb;
 }

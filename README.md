@@ -1,10 +1,34 @@
-# JEE (Main) CBT Mock Test Platform
+# HORIZON TEST SERIES - CBT Mock Test Platform (Python Flask & Next.js)
 
-A full-featured personal mock test platform replicating the official **National Testing Agency (NTA) JEE (Main) Computer Based Test (CBT)** examination experience.
+A full-featured personal mock test platform replicating the official **HORIZON TEST SERIES** Computer Based Test (CBT) examination experience.
 
-Built with **Next.js 14 (App Router)**, **TypeScript**, and **Tailwind CSS**. Designed for local self-study and deployment on **Vercel**.
+Available in both **Python Flask** and **Next.js**.
 
 ---
+
+## Running with Python Flask
+
+1. Activate virtual environment (or install requirements):
+```bash
+./venv/bin/pip install -r requirements.txt
+```
+
+2. Run the server:
+```bash
+python3 run.py
+```
+Or with custom port:
+```bash
+PORT=5000 python3 run.py
+```
+
+3. Open in your browser:
+* **Student CBT Portal:** [http://localhost:5000](http://localhost:5000)
+* **Sample Test:** [http://localhost:5000/test/jee-2026-sample-01](http://localhost:5000/test/jee-2026-sample-01)
+* **Admin Dashboard:** [http://localhost:5000/admin](http://localhost:5000/admin) (Password: `jee2026admin`)
+
+---
+
 
 ## Key Features
 

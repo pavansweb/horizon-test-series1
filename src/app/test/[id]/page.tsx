@@ -12,9 +12,17 @@ import { NtaQuestionPalette } from '@/components/nta/NtaQuestionPalette';
 import { NtaSubmitModal } from '@/components/nta/NtaSubmitModal';
 import { NtaInstructionsModal } from '@/components/nta/NtaInstructionsModal';
 
-export default function TestAttemptPage({ params }: { params: { id: string } }) {
+export default function TestAttemptPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { name?: string };
+}) {
   const router = useRouter();
   const testId = params.id;
+
+  const candidateName = searchParams?.name?.trim() || 'JEE Aspirant';
 
   const [test, setTest] = useState<PublicTest | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -31,6 +39,9 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
   // Timer
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number>(180 * 60);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Palette collapse toggle (for the '>' toggle button on divider)
+  const [isPaletteCollapsed, setIsPaletteCollapsed] = useState<boolean>(false);
 
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
@@ -68,17 +79,13 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
             if (parsed.currentQuestionNumber) setCurrentQuestionNumber(parsed.currentQuestionNumber);
             if (parsed.activeSubjectId) setActiveSubjectId(parsed.activeSubjectId);
 
-            // Set current selected option from restored state
             const currentResp = parsed.candidateResponses?.[parsed.currentQuestionNumber || 1];
             if (currentResp) setSelectedOption(currentResp.selectedOption || null);
           } catch (e) {
             console.warn('Failed to restore saved session:', e);
           }
         } else {
-          // Initialize timer from test duration
           setTimeRemainingSeconds(loadedTest.duration * 60);
-
-          // Mark first question as visited
           setCandidateResponses({
             1: { selectedOption: null, status: 'not_answered', visited: true },
           });
@@ -106,7 +113,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
         return prev;
       } else {
         setSelectedOption(null);
-        // Mark as not_answered if just visiting
         return {
           ...prev,
           [currentQuestionNumber]: {
@@ -130,7 +136,7 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
     }
   }, [currentQuestionNumber, test, activeSubjectId]);
 
-  // Auto-save to localStorage whenever candidate responses or active question changes
+  // Auto-save to localStorage
   useEffect(() => {
     if (!test) return;
     const sessionData = {
@@ -144,7 +150,7 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
     try {
       localStorage.setItem(storageKey, JSON.stringify(sessionData));
     } catch {
-      // Ignore quota exceeded
+      // Ignore
     }
   }, [candidateResponses, timeRemainingSeconds, currentQuestionNumber, activeSubjectId, testId, storageKey, test]);
 
@@ -155,7 +161,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
     try {
       setIsSubmitting(true);
 
-      // Build simplified answers map for submission
       const answers: Record<number, string | null> = {};
       const totalQ = test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
 
@@ -173,7 +178,7 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
           testId,
           candidateResponses: answers,
           timeTakenSeconds: Math.max(timeTaken, 0),
-          candidateName: 'JEE Aspirant',
+          candidateName: candidateName,
         }),
       });
 
@@ -184,7 +189,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
         return;
       }
 
-      // Submission successful - clear auto-save and redirect to results
       localStorage.removeItem(storageKey);
       router.push(`/result/${data.submissionId}`);
     } catch (err) {
@@ -192,9 +196,9 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
       alert('Network error while submitting. Please check connection and try again.');
       setIsSubmitting(false);
     }
-  }, [test, isSubmitting, candidateResponses, timeRemainingSeconds, testId, storageKey, router]);
+  }, [test, isSubmitting, candidateResponses, timeRemainingSeconds, testId, storageKey, candidateName, router]);
 
-  // Countdown timer effect
+  // Timer countdown
   useEffect(() => {
     if (loading || !test) return;
 
@@ -202,7 +206,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
       setTimeRemainingSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
-          // Auto submit when time runs out
           handleFinalSubmit();
           return 0;
         }
@@ -215,7 +218,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
     };
   }, [loading, test, handleFinalSubmit]);
 
-  // Actions
   const totalQuestionsCount = test
     ? test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0)
     : 90;
@@ -226,7 +228,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
   };
 
   const handleSaveAndNext = () => {
-    // If option is selected, mark as 'answered', otherwise keep as 'not_answered'
     const newStatus: QuestionStatus = selectedOption ? 'answered' : 'not_answered';
 
     setCandidateResponses((prev) => ({
@@ -273,8 +274,6 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
   };
 
   const handleMarkForReviewAndNext = () => {
-    // If an option was selected, it becomes 'answered_and_marked'
-    // If no option was selected, it becomes 'marked_for_review'
     const newStatus: QuestionStatus = selectedOption
       ? 'answered_and_marked'
       : 'marked_for_review';
@@ -304,24 +303,71 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <h2 className="text-lg font-bold text-gray-800">Loading JEE Main Examination...</h2>
-        <p className="text-sm text-gray-500">Preparing question paper and CBT interface</p>
+      <div
+        className="w-screen h-screen flex flex-col items-center justify-center"
+        style={{ background: '#f8fafc' }}
+      >
+        <div
+          style={{
+            width: '36px',
+            height: '36px',
+            border: '3px solid #1e4273',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            marginBottom: '14px',
+          }}
+        />
+        <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+          Loading Examination...
+        </h2>
+        <p style={{ fontSize: '12px', color: '#64748b' }}>
+          Preparing HORIZON TEST SERIES environment
+        </p>
+        <style jsx>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
       </div>
     );
   }
 
   if (error || !test) {
     return (
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full text-center border border-gray-200">
-          <div className="text-red-500 text-5xl mb-3">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Test Unavailable</h2>
-          <p className="text-sm text-gray-600 mb-4">{error || 'Could not find requested test paper.'}</p>
+      <div
+        className="w-screen h-screen flex flex-col items-center justify-center p-4"
+        style={{ background: '#f8fafc' }}
+      >
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            padding: '24px 32px',
+            maxWidth: '420px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+          }}
+        >
+          <div style={{ fontSize: '36px', marginBottom: '10px' }}>⚠️</div>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+            Unable to Open Test
+          </h2>
+          <p style={{ fontSize: '12px', color: '#475569', marginBottom: '18px' }}>
+            {error || 'The requested test could not be loaded.'}
+          </p>
           <button
             onClick={() => router.push('/')}
-            className="w-full py-2 bg-blue-700 text-white rounded font-bold hover:bg-blue-800 transition-all cursor-pointer"
+            style={{
+              padding: '8px 20px',
+              fontSize: '12px',
+              fontWeight: 700,
+              background: '#1e4273',
+              color: 'white',
+              border: 'none',
+              borderRadius: '2px',
+              cursor: 'pointer',
+            }}
           >
             Back to Home
           </button>
@@ -330,79 +376,163 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
     );
   }
 
-  const currentSubject =
-    test.subjects.find((s) => s.id === activeSubjectId) || test.subjects[0];
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#eef2f6] text-gray-900 font-sans select-none overflow-x-hidden">
-      {/* 1. Official NTA Header with Timer & Candidate Info */}
+    <div
+      className="nta-exam-ui w-screen h-screen flex flex-col overflow-hidden"
+      style={{
+        background: '#f8fafc',
+        fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, Arial, sans-serif',
+      }}
+    >
+      {/* 1. Header with HORIZON TEST SERIES branding & Pill Timer */}
       <NtaHeader
-        testTitle={test.title}
-        candidateName="JEE Aspirant"
+        candidateName={candidateName}
         timeRemainingSeconds={timeRemainingSeconds}
+        onSubmitTest={() => setIsSubmitModalOpen(true)}
       />
 
-      {/* 2. NTA Subject Bar (Sections & Quick Tools) */}
+      {/* 2. Dark Navy Subject Navigation Bar */}
       <NtaSubjectBar
         subjects={test.subjects}
         activeSubjectId={activeSubjectId}
         onSelectSubject={handleSubjectChange}
-        candidateResponses={candidateResponses}
-        onOpenInstructions={() => setIsInstructionsOpen(true)}
-        onOpenQuestionPaper={() => setIsInstructionsOpen(true)}
+        testGroupTag="JUT90 NEET"
       />
 
-      {/* 3. Main Examination CBT Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-        {/* Left Side: Question Paper PDF & Options & Action Bar (approx 75%) */}
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-3">
-          {/* Scrollable PDF Viewer */}
-          <NtaPdfViewer
-            pdfUrl={test.pdfUrl}
-            currentQuestionNumber={currentQuestionNumber}
-            subjectName={currentSubject.name}
-            markingScheme={test.markingScheme}
-          />
+      {/* 3. Outer Canvas with padding on left, right, and bottom */}
+      <div
+        className="outer-canvas-wrap"
+        style={{
+          flex: '1 1 0',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          minHeight: 0,
+          padding: '10px 14px 14px 14px',
+          background: '#e9edf2',
+        }}
+      >
+        {/* The Big Brighter Box (Container fitting Question, Palette, 4 Options, Bottomline & Action Buttons) */}
+        <div
+          className="big-box-wrap"
+          style={{
+            flex: '1 1 0',
+            display: 'flex',
+            background: '#ffffff',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: '4px',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.07)',
+            overflow: 'hidden',
+            minHeight: 0,
+            position: 'relative',
+          }}
+        >
+          {/* Left Column: Question Area, PDF Embed, Options, Bottomline, Action Buttons */}
+          <div
+            className="left-col-wrap flex flex-col h-full overflow-y-auto"
+            style={{
+              flex: isPaletteCollapsed ? '1 1 100%' : '1 1 68%',
+              minWidth: 0,
+              background: '#ffffff',
+            }}
+          >
+            {/* Scrollable Compact PDF Question Embed (height ~240px matching media) */}
+            <NtaPdfViewer
+              pdfUrl={test.pdfUrl}
+              currentQuestionNumber={currentQuestionNumber}
+            />
 
-          {/* Selectable Options Area (A, B, C, D) */}
-          <NtaOptionSelector
-            currentQuestionNumber={currentQuestionNumber}
-            selectedOption={selectedOption}
-            onSelectOption={(opt) => setSelectedOption(opt)}
-            onClearResponse={handleClearResponse}
-          />
+            {/* Vertical Options 1), 2), 3), 4) */}
+            <NtaOptionSelector
+              currentQuestionNumber={currentQuestionNumber}
+              selectedOption={selectedOption}
+              onSelectOption={(opt) => setSelectedOption(opt)}
+              onClearResponse={handleClearResponse}
+            />
 
-          {/* Bottom Action Bar (Save & Next, Review, Previous, Next) */}
-          <NtaActionBar
-            onSaveAndNext={handleSaveAndNext}
-            onSaveAndMarkForReview={handleSaveAndMarkForReview}
-            onClearResponse={handleClearResponse}
-            onMarkForReviewAndNext={handleMarkForReviewAndNext}
-            onPrevious={() => navigateToQuestion(currentQuestionNumber - 1)}
-            onNext={() => navigateToQuestion(currentQuestionNumber + 1)}
-            onSubmitTest={() => setIsSubmitModalOpen(true)}
-            isFirstQuestion={currentQuestionNumber <= 1}
-            isLastQuestion={currentQuestionNumber >= totalQuestionsCount}
-            hasSelectedOption={!!selectedOption}
-          />
+            {/* The Bottomline Divider */}
+            <div style={{ borderTop: '1.5px solid #cbd5e1', width: '100%', margin: 0, flexShrink: 0 }} />
+
+            {/* Action Buttons Bar: Save & Next, Save & Mark, Mark for Review, Back, Next, Submit */}
+            <NtaActionBar
+              onSaveAndNext={handleSaveAndNext}
+              onSaveAndMarkForReview={handleSaveAndMarkForReview}
+              onClearResponse={handleClearResponse}
+              onMarkForReviewAndNext={handleMarkForReviewAndNext}
+              onPrevious={() => navigateToQuestion(currentQuestionNumber - 1)}
+              onNext={() => navigateToQuestion(currentQuestionNumber + 1)}
+              onSubmitTest={() => setIsSubmitModalOpen(true)}
+              isFirstQuestion={currentQuestionNumber <= 1}
+              isLastQuestion={currentQuestionNumber >= totalQuestionsCount}
+              hasSelectedOption={!!selectedOption}
+            />
+          </div>
+
+          {/* Center Splitter with Collapse/Expand Arrow Button ('>') */}
+          <div
+            style={{
+              position: 'relative',
+              width: '0px',
+              zIndex: 20,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsPaletteCollapsed(!isPaletteCollapsed)}
+              title={isPaletteCollapsed ? 'Show Question Palette' : 'Hide Question Palette'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '-10px',
+                transform: 'translateY(-50%)',
+                width: '18px',
+                height: '34px',
+                background: '#374151',
+                color: '#ffffff',
+                border: '1px solid #1f2937',
+                borderRadius: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                zIndex: 30,
+              }}
+            >
+              {isPaletteCollapsed ? '<' : '>'}
+            </button>
+          </div>
+
+          {/* Right Column: Question Palette & Legend */}
+          {!isPaletteCollapsed && (
+            <div
+              className="palette-wrap"
+              style={{
+                width: '380px',
+                maxWidth: '390px',
+                flexShrink: 0,
+                height: '100%',
+                overflow: 'hidden',
+                background: '#ffffff',
+                borderLeft: '1.5px solid #cbd5e1',
+              }}
+            >
+              <NtaQuestionPalette
+                subjects={test.subjects}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={handleSubjectChange}
+                currentQuestionNumber={currentQuestionNumber}
+                onSelectQuestion={navigateToQuestion}
+                candidateResponses={candidateResponses}
+              />
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Right Side: Candidate Card & Question Palette (approx 25%) */}
-        <aside className="lg:col-span-4 xl:col-span-3 sticky top-2">
-          <NtaQuestionPalette
-            subjects={test.subjects}
-            activeSubjectId={activeSubjectId}
-            onSelectSubject={handleSubjectChange}
-            currentQuestionNumber={currentQuestionNumber}
-            onSelectQuestion={navigateToQuestion}
-            candidateResponses={candidateResponses}
-            onSubmitTest={() => setIsSubmitModalOpen(true)}
-            candidateName="JEE Aspirant"
-          />
-        </aside>
-      </main>
-
-      {/* 4. Submission Confirmation Modal */}
+      {/* Submission Confirmation Modal */}
       <NtaSubmitModal
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
@@ -412,7 +542,7 @@ export default function TestAttemptPage({ params }: { params: { id: string } }) 
         candidateResponses={candidateResponses}
       />
 
-      {/* 5. Instructions Modal */}
+      {/* Instructions Modal */}
       <NtaInstructionsModal
         isOpen={isInstructionsOpen}
         onClose={() => setIsInstructionsOpen(false)}

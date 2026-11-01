@@ -6,7 +6,7 @@ interface NtaPaletteBadgeProps {
   status: QuestionStatus;
   isActive?: boolean;
   onClick?: () => void;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md';
 }
 
 export function NtaPaletteBadge({
@@ -16,46 +16,57 @@ export function NtaPaletteBadge({
   onClick,
   size = 'md',
 }: NtaPaletteBadgeProps) {
-  const sizeClasses = {
-    sm: 'w-7 h-7 text-xs',
-    md: 'w-9 h-9 text-xs sm:text-sm font-semibold',
-    lg: 'w-11 h-11 text-base font-bold',
-  }[size];
+  const width = size === 'sm' ? '26px' : '34px';
+  const height = size === 'sm' ? '26px' : '34px';
+  const fontSize = size === 'sm' ? '11px' : '12.5px';
 
-  // Base button styling
-  let bgStyle = '';
-  let shapeClass = '';
+  let bgColor = '#e5e7eb';
+  let textColor = '#1f2937';
+  let borderColor = '#9ca3af';
+  let clipPath = 'none';
+  let borderRadius = '2px';
+  let showGreenDot = false;
 
   switch (status) {
-    case 'answered':
-      // Green polygon / rounded hex
-      bgStyle = 'bg-[#2ea44f] text-white hover:bg-[#2c974b] shadow-sm';
-      shapeClass = 'rounded-md clip-hex';
+    case 'not_visited':
+      bgColor = '#e5e7eb';
+      textColor = '#374151';
+      borderColor = '#9ca3af';
+      clipPath = 'none';
+      borderRadius = '2px';
       break;
 
     case 'not_answered':
-      // Red-orange trapezoid / shield
-      bgStyle = 'bg-[#d73a49] text-white hover:bg-[#cb2431] shadow-sm';
-      shapeClass = 'rounded-t-lg rounded-b-sm';
+      bgColor = '#d32f2f';
+      textColor = '#ffffff';
+      borderColor = 'transparent';
+      clipPath = 'polygon(15% 0%, 85% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
+      borderRadius = '0';
+      break;
+
+    case 'answered':
+      bgColor = '#388e3c';
+      textColor = '#ffffff';
+      borderColor = 'transparent';
+      clipPath = 'polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
+      borderRadius = '0';
       break;
 
     case 'marked_for_review':
-      // Purple circle
-      bgStyle = 'bg-[#6f42c1] text-white hover:bg-[#5a32a3] shadow-sm';
-      shapeClass = 'rounded-full';
+      bgColor = '#512da8';
+      textColor = '#ffffff';
+      borderColor = 'transparent';
+      clipPath = 'none';
+      borderRadius = '50%';
       break;
 
     case 'answered_and_marked':
-      // Purple circle with green corner indicator
-      bgStyle = 'bg-[#6f42c1] text-white hover:bg-[#5a32a3] shadow-sm relative';
-      shapeClass = 'rounded-full';
-      break;
-
-    case 'not_visited':
-    default:
-      // Gray/silver box
-      bgStyle = 'bg-[#f6f8fa] text-gray-800 border border-gray-300 hover:bg-gray-200';
-      shapeClass = 'rounded-sm';
+      bgColor = '#512da8';
+      textColor = '#ffffff';
+      borderColor = 'transparent';
+      clipPath = 'none';
+      borderRadius = '50%';
+      showGreenDot = true;
       break;
   }
 
@@ -63,46 +74,134 @@ export function NtaPaletteBadge({
     <button
       type="button"
       onClick={onClick}
-      className={`relative inline-flex items-center justify-center transition-all duration-150 select-none ${sizeClasses} ${shapeClass} ${bgStyle} ${
-        isActive ? 'ring-2 ring-offset-2 ring-blue-600 scale-105 z-10' : ''
-      }`}
-      title={`Question ${number}: ${status.replace(/_/g, ' ')}`}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: width,
+        height: height,
+        fontSize: fontSize,
+        fontWeight: 700,
+        background: bgColor,
+        color: textColor,
+        border: clipPath !== 'none' ? 'none' : `1px solid ${borderColor}`,
+        borderRadius: borderRadius,
+        clipPath: clipPath !== 'none' ? clipPath : undefined,
+        cursor: onClick ? 'pointer' : 'default',
+        outline: isActive ? '2px solid #2563eb' : 'none',
+        outlineOffset: '1px',
+        flexShrink: 0,
+        padding: 0,
+        fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
+      }}
+      title={`Question ${number}`}
     >
       <span>{number}</span>
 
-      {/* Small green badge at bottom right for 'answered_and_marked' */}
-      {status === 'answered_and_marked' && (
+      {/* Green corner square for answered_and_marked */}
+      {showGreenDot && (
         <span
-          className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#2ea44f] border border-white rounded-sm flex items-center justify-center"
-          title="Evaluated"
-        >
-          <svg className="w-2 h-2 text-white" viewBox="0 0 12 12" fill="currentColor">
-            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+          style={{
+            position: 'absolute',
+            bottom: '-1px',
+            right: '-1px',
+            width: '8px',
+            height: '8px',
+            background: '#388e3c',
+            border: '1px solid white',
+            borderRadius: '1px',
+          }}
+        />
       )}
     </button>
   );
 }
 
-/**
- * Visual miniature icon for legends
- */
 export function NtaLegendBadge({
   status,
-  count,
   label,
 }: {
   status: QuestionStatus;
-  count: number;
   label: string;
 }) {
+  let bgColor = '#e5e7eb';
+  let clipPath = 'none';
+  let borderRadius = '2px';
+  let border = '1px solid #9ca3af';
+  let showGreenDot = false;
+
+  switch (status) {
+    case 'not_visited':
+      bgColor = '#e5e7eb';
+      border = '1px solid #9ca3af';
+      break;
+
+    case 'not_answered':
+      bgColor = '#d32f2f';
+      clipPath = 'polygon(15% 0%, 85% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
+      border = 'none';
+      break;
+
+    case 'answered':
+      bgColor = '#388e3c';
+      clipPath = 'polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
+      border = 'none';
+      break;
+
+    case 'marked_for_review':
+      bgColor = '#512da8';
+      borderRadius = '50%';
+      border = 'none';
+      break;
+
+    case 'answered_and_marked':
+      bgColor = '#512da8';
+      borderRadius = '50%';
+      border = 'none';
+      showGreenDot = true;
+      break;
+  }
+
   return (
-    <div className="flex items-center gap-2 text-xs py-1">
-      <div className="flex-shrink-0">
-        <NtaPaletteBadge number={count} status={status} size="sm" />
+    <div className="flex items-center gap-2">
+      <div
+        style={{
+          position: 'relative',
+          width: '20px',
+          height: '20px',
+          background: bgColor,
+          clipPath: clipPath !== 'none' ? clipPath : undefined,
+          borderRadius: borderRadius,
+          border: border,
+          flexShrink: 0,
+        }}
+      >
+        {showGreenDot && (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: '-1px',
+              right: '-1px',
+              width: '7px',
+              height: '7px',
+              background: '#388e3c',
+              border: '1px solid white',
+              borderRadius: '1px',
+            }}
+          />
+        )}
       </div>
-      <span className="text-gray-700 font-medium leading-tight">{label}</span>
+      <span
+        style={{
+          fontSize: '11px',
+          color: '#4b5563',
+          lineHeight: '1.2',
+          fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }

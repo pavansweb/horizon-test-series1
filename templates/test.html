@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HORIZON TEST SERIES - Online Examination</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>
+    // Immediate theme check to prevent flash
+    (function() {
+      try {
+        var saved = localStorage.getItem('cbt_theme');
+        if (saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <!-- PDF.js library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      background: var(--page-bg);
+    }
+  </style>
+</head>
+<body class="cbt-unselectable" style="display: flex; flex-direction: column; height: 100vh;">
+
+  <!-- 1. Header with HORIZON TEST SERIES branding, Theme Toggle & Pill Timer -->
+  <header style="background: #ffffff; border-bottom: 1px solid #d1d5db; padding: 8px 18px; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      
+      <!-- Left: Logo & Horizon Test Series Header -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 50px; height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 100 100" style="width: 100%; height: 100%;">
+            <circle cx="50" cy="50" r="46" fill="none" stroke="#d4af37" stroke-width="2.5" />
+            <circle cx="50" cy="50" r="41" fill="#fdfbf7" stroke="#1e3a68" stroke-width="1.5" />
+            <path d="M50 16 L76 26 C76 56 50 78 50 78 C50 78 24 56 24 26 Z" fill="#1e3a68" stroke="#d4af37" stroke-width="1.5" />
+            <path d="M34 50 A16 16 0 0 1 66 50 Z" fill="#f59e0b" />
+            <line x1="50" y1="30" x2="50" y2="24" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+            <line x1="39" y1="34" x2="35" y2="30" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+            <line x1="61" y1="34" x2="65" y2="30" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+            <path d="M36 58 Q44 54 50 58 Q56 54 64 58 L64 68 Q56 64 50 68 Q44 64 36 68 Z" fill="#ffffff" stroke="#d4af37" stroke-width="1" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="header-title" style="font-size: 22px; font-weight: 800; color: #1e4273; letter-spacing: 0.8px; line-height: 1.15; margin: 0; text-transform: uppercase;">
+            HORIZON TEST SERIES
+          </h1>
+          <div class="header-subtitle" style="font-size: 11.5px; font-weight: 600; color: #475569; letter-spacing: 0.4px; margin-top: 2px; text-transform: uppercase;">
+            (HORIZON ONLINE ENTRANCE TRAINING INSTITUTE)
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Theme Toggle, Candidate Photo, Name & Pill Timer -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        
+        <!-- Dark / Light Theme Toggle Button -->
+        <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark/Light Mode" style="width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <!-- Sun icon (shown when in dark mode) -->
+          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none; color: #f59e0b;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <!-- Moon icon (shown when in light mode) -->
+          <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block; color: #475569;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+
+        <div class="candidate-avatar" style="width: 46px; height: 54px; border: 1px solid #94a3b8; background-color: #e2e8f0; border-radius: 2px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="#64748b">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+        </div>
+        <div style="display: flex; flex-direction: column; justify-content: center; line-height: 1.45;">
+          <div style="font-size: 13.5px; color: #334155;">
+            <span class="candidate-label" style="font-weight: 500;">Candidate Name: </span>
+            <span id="candidate-name-display" class="candidate-name-text" style="font-weight: 700; color: #0f172a;">{{ candidate_name }}</span>
+          </div>
+          <div style="display: flex; align-items: center; font-size: 13.5px; color: #334155;">
+            <span class="candidate-label" style="font-weight: 500;">Time Left :</span>
+            <span id="header-timer" style="margin-left: 8px; background: #e0f7fa; border: 2px solid #00bcd4; border-radius: 14px; padding: 2px 14px; font-family: monospace; font-weight: 800; font-size: 15.5px; color: #00838f; letter-spacing: 1px;">
+              0:0:00
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- 2. Dark Navy Blue Subject Navigation Bar -->
+  <div style="background: #1e4273; border-bottom: 1px solid #132f54; min-height: 38px; display: flex; align-items: center; flex-shrink: 0;">
+    <div style="display: flex; align-items: stretch; height: 100%; overflow-x: auto;">
+      <!-- Test Group Tag (e.g. JUT90 NEET) -->
+      <div style="padding: 8px 18px; font-size: 12px; font-weight: 700; color: #ffffff; background: #15345d; border-right: 1px solid #2b568c; letter-spacing: 0.6px; display: flex; align-items: center; text-transform: uppercase; white-space: nowrap;">
+        JUT90 NEET
+      </div>
+      <!-- Dynamic Subject Tabs -->
+      <div id="subject-tabs" style="display: flex; align-items: stretch; height: 100%;"></div>
+    </div>
+  </div>
+
+  <!-- 3. Outer Canvas with padding on left, right, and bottom -->
+  <div class="outer-canvas" style="flex: 1 1 0; display: flex; flex-direction: column; overflow: hidden; min-height: 0; padding: 12px 16px 16px 16px; background: #e9edf2;">
+    
+    <!-- The Big Brighter Box (Container fitting Question, Palette, 4 Options, Bottomline & Action Buttons) -->
+    <div class="big-box" style="flex: 1 1 0; display: flex; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 4px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); overflow: hidden; min-height: 0; position: relative;">
+      
+      <!-- Left Column: Question Area, PDF Embed, Options, Bottomline, Action Buttons -->
+      <div id="left-question-panel" style="flex: 1 1 68%; min-width: 0; background: #ffffff; display: flex; flex-direction: column; overflow-y: auto;">
+        
+        <!-- Top Question Info & Circular Blue Scroll Arrows Bar -->
+        <div class="question-info-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 18px; border-bottom: 1px solid #e5e7eb; background: #ffffff; flex-shrink: 0;">
+          <div class="question-no-text" style="font-size: 15.5px; font-weight: 700; color: #7f1d1d;">
+            Question No : <span id="current-q-number">1</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <!-- Blue Circle with Down Arrow (Scroll Down) -->
+            <button type="button" id="btn-scroll-down" title="Scroll Down Question Paper" style="width: 28px; height: 28px; border-radius: 50%; background: #3b82f6; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+              </svg>
+            </button>
+            <!-- Blue Circle with Up Arrow (Scroll Up) -->
+            <button type="button" id="btn-scroll-up" title="Scroll Up Question Paper" style="width: 28px; height: 28px; border-radius: 50%; background: #3b82f6; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+            </button>
+            <!-- Zoom Controls -->
+            <div style="display: flex; align-items: center; gap: 4px; margin-left: 10px;">
+              <button type="button" id="btn-zoom-out" class="btn-zoom" title="Zoom out" style="font-size: 12px; padding: 2px 7px; border: 1px solid #d1d5db; background: #f8fafc; border-radius: 2px; cursor: pointer; color: #475569;">-</button>
+              <span id="zoom-level-text" style="font-size: 11px; color: #64748b; min-width: 32px; text-align: center;">90%</span>
+              <button type="button" id="btn-zoom-in" class="btn-zoom" title="Zoom in" style="font-size: 12px; padding: 2px 7px; border: 1px solid #d1d5db; background: #f8fafc; border-radius: 2px; cursor: pointer; color: #475569;">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generous Scrollable PDF Embed (height ~380px matching media) -->
+        <div id="pdf-scroll-container" style="height: 380px; min-height: 280px; max-height: 440px; background: #f8fafc; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; overflow-y: auto; overflow-x: auto; padding: 8px; position: relative; flex-shrink: 0;">
+          <!-- Loading spinner -->
+          <div id="pdf-loading-indicator" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b;">
+            <div style="width: 26px; height: 26px; border: 2.5px solid #1e4273; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 6px;"></div>
+            <span style="font-size: 12px; font-weight: 600;">Loading Question Paper PDF...</span>
+          </div>
+          <!-- Canvas container for PDF.js -->
+          <div id="pdf-canvas-container" style="width: 100%; display: flex; flex-direction: column; align-items: center;"></div>
+          <!-- Fallback iframe -->
+          <iframe id="pdf-fallback-iframe" style="display: none; width: 100%; height: 100%; min-height: 300px; border: none; background: white;" title="Question Paper"></iframe>
+        </div>
+
+        <!-- 4 Vertical Radio Options 1), 2), 3), 4) -->
+        <div class="options-panel" style="background: #ffffff; padding: 12px 20px; flex-shrink: 0;">
+          <div id="options-container" style="display: flex; flex-direction: column; gap: 11px;"></div>
+          <div style="margin-top: 6px; text-align: right;">
+            <button type="button" id="clear-response-btn" style="display: none; font-size: 11.5px; color: #dc2626; font-weight: 600; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 2px 6px;">
+              Clear Response
+            </button>
+          </div>
+        </div>
+
+        <!-- The Bottomline Divider -->
+        <div class="bottomline-divider" style="border-top: 1.5px solid #cbd5e1; width: 100%; margin: 0; flex-shrink: 0;"></div>
+
+        <!-- Below the Bottomline: Action Buttons Bar -->
+        <div class="action-bar-container" style="background: #ffffff; padding: 12px 20px 14px 20px; display: flex; align-items: flex-end; justify-content: space-between; margin-top: auto; flex-shrink: 0;">
+          
+          <!-- Left button stack -->
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <!-- Row 1: SAVE & NEXT (Green) and SAVE & MARK FOR REVIEW (Amber) -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button type="button" id="btn-save-next" class="cbt-btn cbt-btn-green" style="padding: 9px 22px; font-size: 12.5px; letter-spacing: 0.5px;">
+                SAVE &amp; NEXT
+              </button>
+              <button type="button" id="btn-save-mark" class="cbt-btn cbt-btn-orange" style="padding: 9px 22px; font-size: 12.5px; letter-spacing: 0.5px;">
+                SAVE &amp; MARK FOR REVIEW
+              </button>
+            </div>
+
+            <!-- Row 2: MARK FOR REVIEW & NEXT (Dark Blue) -->
+            <div>
+              <button type="button" id="btn-mark-next" class="cbt-btn cbt-btn-blue" style="padding: 9px 22px; font-size: 12.5px; letter-spacing: 0.5px;">
+                MARK FOR REVIEW &amp; NEXT
+              </button>
+            </div>
+
+            <!-- Row 3: << BACK and NEXT >> -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" id="btn-prev" class="cbt-btn cbt-btn-outline" style="padding: 7px 16px; font-size: 12px;">
+                &lt;&lt; BACK
+              </button>
+              <button type="button" id="btn-next" class="cbt-btn cbt-btn-outline" style="padding: 7px 16px; font-size: 12px;">
+                NEXT &gt;&gt;
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: SUBMIT button (Green) at bottom right of question area -->
+          <div>
+            <button type="button" id="btn-submit" class="cbt-btn cbt-btn-green" style="padding: 9px 26px; font-size: 13px; letter-spacing: 0.6px;">
+              SUBMIT
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Center Splitter with Collapse/Expand Arrow Button ('>') -->
+      <div style="position: relative; width: 0; z-index: 20;">
+        <button type="button" id="splitter-toggle-btn" title="Collapse Question Palette" style="position: absolute; top: 50%; left: -10px; transform: translateY(-50%); width: 18px; height: 34px; background: #374151; color: #ffffff; border: 1px solid #1f2937; border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.25); z-index: 30;">
+          &gt;
+        </button>
+      </div>
+
+      <!-- Right Column: Question Palette & Legend inside the Big Brighter Box -->
+      <div id="right-palette-panel" style="width: 380px; max-width: 390px; flex-shrink: 0; height: 100%; overflow: hidden; background: #ffffff; border-left: 1.5px solid #cbd5e1; padding: 14px 16px; display: flex; flex-direction: column;">
+        
+        <!-- Top Legend Area -->
+        <div class="legend-container" style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;">
+          <!-- Row 1: Not Visited & Not Answered -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="badge-not-visited" style="width: 22px; height: 22px; flex-shrink: 0;"></div>
+              <span class="legend-label" style="font-size: 12px; color: #4b5563;">Not Visited</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="badge-not-answered" style="width: 22px; height: 22px; flex-shrink: 0;"></div>
+              <span class="legend-label" style="font-size: 12px; color: #4b5563;">Not Answered</span>
+            </div>
+          </div>
+
+          <!-- Row 2: Answered & Marked for Review -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="badge-answered" style="width: 22px; height: 22px; flex-shrink: 0;"></div>
+              <span class="legend-label" style="font-size: 12px; color: #4b5563;">Answered</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="badge-marked" style="width: 22px; height: 22px; flex-shrink: 0;"></div>
+              <span class="legend-label" style="font-size: 12px; color: #4b5563;">Marked for Review</span>
+            </div>
+          </div>
+
+          <!-- Row 3: Answered & Marked for Review (will be considered for evaluation) -->
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 1px;">
+            <div class="badge-answered-marked" style="width: 22px; height: 22px; flex-shrink: 0;"></div>
+            <span class="legend-label" style="font-size: 11.5px; color: #4b5563; line-height: 1.25;">Answered &amp; Marked for Review (will be considered for evaluation)</span>
+          </div>
+        </div>
+
+        <!-- 9-Column Question Palette Grid -->
+        <div class="palette-scroll-box" style="flex: 1 1 0; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 2px; padding: 10px; background: #fafafa; min-height: 0;">
+          <div id="palette-grid" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Submit Confirmation Modal -->
+  <div id="submit-modal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 100; align-items: center; justify-content: center;">
+    <div class="modal-card" style="background: white; border: 2px solid #1e4273; border-radius: 4px; max-width: 640px; width: 95%; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.35);">
+      <div style="background: #1e4273; color: white; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;">
+        <h2 style="font-size: 14px; font-weight: 700; margin: 0;">Examination Summary</h2>
+        <span style="font-size: 10px; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 2px;">HORIZON CBT</span>
+      </div>
+      <div style="padding: 16px;">
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; font-weight: 500;">
+          Please verify your test attempt summary before final submission:
+        </p>
+        <table class="modal-table" style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <thead>
+            <tr style="background: #e3f2fd; color: #1e293b;">
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: left;">Subject</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center;">Total</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center; color: #2e7d32;">Answered</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center; color: #c62828;">Not Ans.</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center; color: #7b1fa2;">Marked</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center; color: #512da8;">Ans &amp; Marked</th>
+              <th style="padding: 6px 8px; border: 1px solid #bdbdbd; text-align: center; color: #6b7280;">Not Visited</th>
+            </tr>
+          </thead>
+          <tbody id="submit-summary-tbody"></tbody>
+        </table>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
+          <button type="button" id="modal-cancel-btn" class="cbt-btn cbt-btn-outline" style="padding: 6px 16px; font-size: 12px;">Cancel</button>
+          <button type="button" id="modal-confirm-btn" class="cbt-btn cbt-btn-green" style="padding: 6px 20px; font-size: 12px;">Yes, Submit Test</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+
+  <script>
+    window.TEST_ID = "{{ test_id }}";
+    window.CANDIDATE_NAME = "{{ candidate_name }}";
+  </script>
+  <script src="/static/js/test.js"></script>
+</body>
+</html>

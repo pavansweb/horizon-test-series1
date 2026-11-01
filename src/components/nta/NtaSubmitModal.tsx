@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { SubjectConfig, CandidateResponseMap, QuestionStatus } from '@/lib/types';
-import { AlertCircleIcon } from '@/components/icons/Icons';
 
 interface NtaSubmitModalProps {
   isOpen: boolean;
@@ -50,7 +49,6 @@ export function NtaSubmitModal({
     };
   });
 
-  // Calculate totals
   const totalQuestions = breakdown.reduce((sum, b) => sum + b.total, 0);
   const totalAnswered = breakdown.reduce((sum, b) => sum + b.answered, 0);
   const totalNotAnswered = breakdown.reduce((sum, b) => sum + b.notAnswered, 0);
@@ -58,91 +56,184 @@ export function NtaSubmitModal({
   const totalAnsweredAndMarked = breakdown.reduce((sum, b) => sum + b.answeredAndMarked, 0);
   const totalNotVisited = breakdown.reduce((sum, b) => sum + b.notVisited, 0);
 
+  const thStyle: React.CSSProperties = {
+    padding: '6px 8px',
+    borderRight: '1px solid #bdbdbd',
+    borderBottom: '1px solid #bdbdbd',
+    textAlign: 'center',
+    fontSize: '11px',
+    fontWeight: 700,
+    background: '#e3f2fd',
+    color: '#212121',
+  };
+
+  const tdStyle: React.CSSProperties = {
+    padding: '5px 8px',
+    borderRight: '1px solid #e0e0e0',
+    borderBottom: '1px solid #e0e0e0',
+    textAlign: 'center',
+    fontSize: '12px',
+    fontWeight: 500,
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs select-none">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full border border-gray-300 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.5)' }}
+    >
+      <div
+        style={{
+          background: 'white',
+          border: '2px solid #1e4273',
+          borderRadius: '3px',
+          maxWidth: '640px',
+          width: '95%',
+          overflow: 'hidden',
+        }}
+      >
         {/* Header */}
-        <div className="bg-[#1e3a8a] text-white px-5 py-3 flex items-center justify-between">
-          <h2 className="font-bold text-base sm:text-lg">Examination Summary</h2>
-          <span className="text-xs bg-blue-800 text-blue-100 px-2 py-0.5 rounded font-mono">
-            NTA CBT
+        <div
+          style={{
+            background: '#1e4273',
+            color: 'white',
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <h2 style={{ fontSize: '14px', fontWeight: 700 }}>Examination Summary</h2>
+          <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: '2px' }}>
+            HORIZON CBT
           </span>
         </div>
 
-        {/* Content Table */}
-        <div className="p-4 sm:p-6 overflow-x-auto">
-          <p className="text-xs sm:text-sm text-gray-700 mb-3 font-medium">
+        {/* Content */}
+        <div style={{ padding: '16px' }}>
+          <p style={{ fontSize: '12px', color: '#424242', marginBottom: '12px', fontWeight: 500 }}>
             Please verify your test attempt summary before final submission:
           </p>
 
-          <table className="w-full text-xs sm:text-sm text-left border-collapse border border-gray-300">
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #bdbdbd' }}>
             <thead>
-              <tr className="bg-[#f1f5f9] text-gray-800 font-bold border-b border-gray-300">
-                <th className="p-2 border-r border-gray-300">Subject</th>
-                <th className="p-2 text-center border-r border-gray-300">Total</th>
-                <th className="p-2 text-center border-r border-gray-300 text-green-700">Answered</th>
-                <th className="p-2 text-center border-r border-gray-300 text-red-600">Not Answered</th>
-                <th className="p-2 text-center border-r border-gray-300 text-purple-700">Marked Review</th>
-                <th className="p-2 text-center border-r border-gray-300 text-purple-800">Ans & Marked</th>
-                <th className="p-2 text-center text-gray-500">Not Visited</th>
+              <tr>
+                <th style={{ ...thStyle, textAlign: 'left' }}>Subject</th>
+                <th style={thStyle}>Total</th>
+                <th style={{ ...thStyle, color: '#2e7d32' }}>Answered</th>
+                <th style={{ ...thStyle, color: '#c62828' }}>Not Ans.</th>
+                <th style={{ ...thStyle, color: '#7b1fa2' }}>Marked</th>
+                <th style={{ ...thStyle, color: '#6a1b9a' }}>Ans & Marked</th>
+                <th style={{ ...thStyle, color: '#757575', borderRight: 'none' }}>Not Visited</th>
               </tr>
             </thead>
             <tbody>
               {breakdown.map((row) => (
-                <tr key={row.name} className="border-b border-gray-200 hover:bg-gray-50 font-medium">
-                  <td className="p-2 font-bold text-gray-900 border-r border-gray-300">{row.name}</td>
-                  <td className="p-2 text-center border-r border-gray-300">{row.total}</td>
-                  <td className="p-2 text-center border-r border-gray-300 text-green-700 font-bold">{row.answered}</td>
-                  <td className="p-2 text-center border-r border-gray-300 text-red-600">{row.notAnswered}</td>
-                  <td className="p-2 text-center border-r border-gray-300 text-purple-700">{row.markedForReview}</td>
-                  <td className="p-2 text-center border-r border-gray-300 text-purple-800 font-bold">{row.answeredAndMarked}</td>
-                  <td className="p-2 text-center text-gray-500">{row.notVisited}</td>
+                <tr key={row.name}>
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{row.name}</td>
+                  <td style={tdStyle}>{row.total}</td>
+                  <td style={{ ...tdStyle, color: '#2e7d32', fontWeight: 700 }}>{row.answered}</td>
+                  <td style={{ ...tdStyle, color: '#c62828' }}>{row.notAnswered}</td>
+                  <td style={{ ...tdStyle, color: '#7b1fa2' }}>{row.markedForReview}</td>
+                  <td style={{ ...tdStyle, color: '#6a1b9a', fontWeight: 700 }}>{row.answeredAndMarked}</td>
+                  <td style={{ ...tdStyle, color: '#757575', borderRight: 'none' }}>{row.notVisited}</td>
                 </tr>
               ))}
               {/* Total Row */}
-              <tr className="bg-[#f8fafc] font-bold border-t-2 border-gray-300 text-gray-900">
-                <td className="p-2 border-r border-gray-300">TOTAL</td>
-                <td className="p-2 text-center border-r border-gray-300">{totalQuestions}</td>
-                <td className="p-2 text-center border-r border-gray-300 text-green-700">{totalAnswered}</td>
-                <td className="p-2 text-center border-r border-gray-300 text-red-600">{totalNotAnswered}</td>
-                <td className="p-2 text-center border-r border-gray-300 text-purple-700">{totalMarkedForReview}</td>
-                <td className="p-2 text-center border-r border-gray-300 text-purple-800">{totalAnsweredAndMarked}</td>
-                <td className="p-2 text-center text-gray-500">{totalNotVisited}</td>
+              <tr style={{ background: '#f5f5f5' }}>
+                <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, borderBottom: 'none' }}>TOTAL</td>
+                <td style={{ ...tdStyle, fontWeight: 700, borderBottom: 'none' }}>{totalQuestions}</td>
+                <td style={{ ...tdStyle, color: '#2e7d32', fontWeight: 700, borderBottom: 'none' }}>{totalAnswered}</td>
+                <td style={{ ...tdStyle, color: '#c62828', fontWeight: 700, borderBottom: 'none' }}>{totalNotAnswered}</td>
+                <td style={{ ...tdStyle, color: '#7b1fa2', fontWeight: 700, borderBottom: 'none' }}>{totalMarkedForReview}</td>
+                <td style={{ ...tdStyle, color: '#6a1b9a', fontWeight: 700, borderBottom: 'none' }}>{totalAnsweredAndMarked}</td>
+                <td style={{ ...tdStyle, color: '#757575', fontWeight: 700, borderRight: 'none', borderBottom: 'none' }}>{totalNotVisited}</td>
               </tr>
             </tbody>
           </table>
 
-          {/* Warning box */}
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded text-amber-900 flex items-start gap-2 text-xs sm:text-sm">
-            <AlertCircleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          {/* Warning */}
+          <div
+            style={{
+              marginTop: '14px',
+              padding: '10px 12px',
+              background: '#fff3e0',
+              border: '1px solid #ffb74d',
+              borderRadius: '2px',
+              fontSize: '12px',
+              color: '#e65100',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}
+          >
+            <span style={{ fontSize: '16px', lineHeight: '1', flexShrink: 0 }}>⚠</span>
             <div>
-              <span className="font-bold">Important Notice:</span> Are you sure you want to submit
-              the test? Once submitted, you will not be able to change any answers. Your score and
-              detailed analysis will be evaluated immediately.
+              <strong>Important Notice:</strong> Are you sure you want to submit the test?
+              Once submitted, you will not be able to change any answers.
+              Your score and detailed analysis will be evaluated immediately.
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="bg-[#f1f5f9] px-5 py-3 border-t border-gray-300 flex items-center justify-end gap-3">
+        {/* Action buttons */}
+        <div
+          style={{
+            background: '#eceff1',
+            padding: '10px 16px',
+            borderTop: '1px solid #bdbdbd',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: '10px',
+          }}
+        >
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-4 py-2 text-xs sm:text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 transition-all cursor-pointer shadow-2xs"
+            style={{
+              padding: '6px 16px',
+              fontSize: '12px',
+              fontWeight: 700,
+              background: 'white',
+              color: '#424242',
+              border: '1px solid #9e9e9e',
+              borderRadius: '2px',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+            }}
           >
             No, Resume Test
           </button>
-
           <button
             type="button"
             onClick={onConfirmSubmit}
             disabled={isSubmitting}
-            className="px-5 py-2 text-xs sm:text-sm font-bold text-white bg-[#2ea44f] hover:bg-[#2c974b] active:bg-[#22863a] rounded transition-all cursor-pointer shadow-xs flex items-center gap-2"
+            style={{
+              padding: '6px 20px',
+              fontSize: '12px',
+              fontWeight: 700,
+              background: '#4caf50',
+              color: 'white',
+              border: '1px solid #388e3c',
+              borderRadius: '2px',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
           >
             {isSubmitting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div
+                  style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid white',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 0.6s linear infinite',
+                  }}
+                />
                 <span>Evaluating...</span>
               </>
             ) : (
@@ -151,6 +242,13 @@ export function NtaSubmitModal({
           </button>
         </div>
       </div>
+
+      {/* Spin keyframes */}
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

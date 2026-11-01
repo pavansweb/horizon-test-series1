@@ -1,5 +1,45 @@
 [
   {
+    "title": "JEE (Main) Mock Test - Paper 1",
+    "duration": 180,
+    "totalMarks": 300,
+    "pdfUrl": "/uploads/1793507767958-k8amzw-ii-pu-sanskrit-final-sanskrit-only-compact.pdf",
+    "pdfFileName": "II_PU_Sanskrit_Final_Sanskrit_Only_Compact.pdf",
+    "subjects": [
+      {
+        "id": "physics",
+        "name": "Physics",
+        "startQuestion": 1,
+        "endQuestion": 25,
+        "totalQuestions": 25
+      },
+      {
+        "id": "chemistry",
+        "name": "Chemistry",
+        "startQuestion": 26,
+        "endQuestion": 50,
+        "totalQuestions": 25
+      },
+      {
+        "id": "mathematics",
+        "name": "Mathematics",
+        "startQuestion": 51,
+        "endQuestion": 75,
+        "totalQuestions": 25
+      }
+    ],
+    "markingScheme": {
+      "correct": 4,
+      "incorrect": -1,
+      "unattempted": 0
+    },
+    "answerKey": {},
+    "status": "draft",
+    "id": "5a224fe6-af06-4eed-937a-29dbd226dea0",
+    "createdAt": "2026-11-01T04:36:07.965Z",
+    "updatedAt": "2026-11-01T04:36:07.965Z"
+  },
+  {
     "id": "jee-2026-sample-01",
     "title": "JEE (Main) 2026 Full Syllabus Mock Test - Paper 1",
     "duration": 180,
@@ -11,22 +51,22 @@
         "id": "physics",
         "name": "Physics",
         "startQuestion": 1,
-        "endQuestion": 30,
-        "totalQuestions": 30
+        "endQuestion": 25,
+        "totalQuestions": 25
       },
       {
         "id": "chemistry",
         "name": "Chemistry",
-        "startQuestion": 31,
-        "endQuestion": 60,
-        "totalQuestions": 30
+        "startQuestion": 26,
+        "endQuestion": 50,
+        "totalQuestions": 25
       },
       {
         "id": "mathematics",
         "name": "Mathematics",
-        "startQuestion": 61,
-        "endQuestion": 90,
-        "totalQuestions": 30
+        "startQuestion": 51,
+        "endQuestion": 75,
+        "totalQuestions": 25
       }
     ],
     "markingScheme": {

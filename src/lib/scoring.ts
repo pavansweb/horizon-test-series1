@@ -51,11 +51,24 @@ export function calculateTestResult(
       (s) => qNum >= s.startQuestion && qNum <= s.endQuestion
     ) || subjects[0];
 
-    const selectedOption = candidateResponses[qNum]?.trim().toUpperCase() || null;
-    const correctOption = (answerKey[qNum] || '').trim().toUpperCase();
+    const rawSelected = candidateResponses[qNum]?.trim().toUpperCase() || null;
+    const rawCorrect = (answerKey[qNum] || '').trim().toUpperCase();
+
+    // Normalize option formats: '1' -> 'A', '2' -> 'B', '3' -> 'C', '4' -> 'D'
+    const normalizeOpt = (opt: string | null): string => {
+      if (!opt) return '';
+      if (opt === '1') return 'A';
+      if (opt === '2') return 'B';
+      if (opt === '3') return 'C';
+      if (opt === '4') return 'D';
+      return opt;
+    };
+
+    const selectedOption = rawSelected;
+    const correctOption = rawCorrect;
 
     const isAttempted = !!selectedOption;
-    const isCorrect = isAttempted && selectedOption === correctOption;
+    const isCorrect = isAttempted && normalizeOpt(selectedOption) === normalizeOpt(correctOption);
     let marksAwarded = 0;
 
     const subStat = subjectResultsMap.get(subject.id)!;

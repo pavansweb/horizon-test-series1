@@ -31,6 +31,15 @@ yarn-error.log*
 # test attempt submissions
 /data/submissions.json
 
+# python / venv
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
 # vercel
 .vercel
 
