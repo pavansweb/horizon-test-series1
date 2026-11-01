@@ -311,7 +311,23 @@ Return a STRICTLY VALID JSON object with this exact schema:
   },
   "pdfStartPage": number,
   "pdfEndPage": number,
-  "detectedSummary": string
+  "detectedSummary": string,
+  "questions": [
+    {
+      "questionNumber": number,
+      "subjectId": "physics" | "chemistry" | "mathematics",
+      "type": "mcq" | "numerical",
+      "questionText": string,
+      "options": [
+        { "id": "A", "text": string },
+        { "id": "B", "text": string },
+        { "id": "C", "text": string },
+        { "id": "D", "text": string }
+      ],
+      "correctAnswer": string,
+      "solution": string
+    }
+  ]
 }
 
 Critical Instructions:
@@ -339,9 +355,19 @@ Critical Instructions:
      Therefore, pdfEndPage MUST be the page containing the final question, BEFORE any answer key table, hint, or solutions section begins!
      (For example, if questions are on pages 1 to 14, and detailed solutions are on pages 15 to 28, set pdfEndPage to 14, NEVER 28!)
 
-5. Return ONLY clean, raw JSON matching the schema above."""
+5. COMPLETE QUESTION EXTRACTION & FORMATTING:
+   - Extract each question into the "questions" array.
+   - "questionNumber": integer 1..N matching the paper sequence.
+   - "subjectId": "physics" | "chemistry" | "mathematics".
+   - "type": "numerical" for integer/numerical questions, otherwise "mcq".
+   - "questionText": Full question statement. For math, use standard clean notation or LaTeX (e.g. $x^2 + y = 0$).
+   - "options": For MCQ, array of 4 options with "id" ("A", "B", "C", "D") and "text". Empty array [] for numerical questions.
+   - "correctAnswer": The correct answer (e.g. "A" or "14").
+   - "solution": Detailed solution or explanation if present in the PDF.
 
-    models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash']
+6. Return ONLY clean, raw JSON matching the schema above."""
+
+    models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']
     payload = json.dumps({
         "contents": [{
             "parts": [

@@ -22,10 +22,10 @@ export default function ResultPage({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters for question review
+  // Selected question in palette review
+  const [selectedQNumber, setSelectedQNumber] = useState<number>(1);
   const [statusFilter, setStatusFilter] = useState<'all' | 'correct' | 'incorrect' | 'unattempted'>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
-  const [showPdfSide, setShowPdfSide] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadResult() {
@@ -40,6 +40,9 @@ export default function ResultPage({
         }
 
         setResult(data.result);
+        if (data.result?.questionReviews?.length > 0) {
+          setSelectedQNumber(data.result.questionReviews[0].questionNumber);
+        }
       } catch (err) {
         console.error('Error fetching result:', err);
         setError('Failed to fetch test results');
@@ -90,7 +93,26 @@ export default function ResultPage({
     return `${mins}m ${secs}s`;
   };
 
-  // Filter question reviews
+  // Find currently selected question review
+  const selectedQuestion =
+    result.questionReviews.find((q) => q.questionNumber === selectedQNumber) ||
+    result.questionReviews[0];
+
+  const handlePrevQuestion = () => {
+    const idx = result.questionReviews.findIndex((q) => q.questionNumber === selectedQNumber);
+    if (idx > 0) {
+      setSelectedQNumber(result.questionReviews[idx - 1].questionNumber);
+    }
+  };
+
+  const handleNextQuestion = () => {
+    const idx = result.questionReviews.findIndex((q) => q.questionNumber === selectedQNumber);
+    if (idx >= 0 && idx < result.questionReviews.length - 1) {
+      setSelectedQNumber(result.questionReviews[idx + 1].questionNumber);
+    }
+  };
+
+  // Filtered reviews for palette
   const filteredReviews = result.questionReviews.filter((item: QuestionReviewItem) => {
     if (statusFilter !== 'all' && item.status !== statusFilter) return false;
     if (subjectFilter !== 'all' && item.subjectId !== subjectFilter) return false;
@@ -98,28 +120,27 @@ export default function ResultPage({
   });
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 font-sans pb-12">
-      {/* Top Header */}
-      <header className="bg-[#1e3a8a] text-white border-b border-blue-900 shadow-sm py-4 px-4 sm:px-6">
+    <div className="min-h-screen bg-slate-100 text-gray-900 font-sans pb-16">
+      {/* 1. Top Header */}
+      <header className="bg-[#1e3a8a] text-white border-b border-blue-900 shadow-sm py-4 px-4 sm:px-6 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             <span className="text-xs font-bold tracking-widest text-blue-200 uppercase">
-              JEE (Main) Mock Test Result Card
+              JEE (Main) Examination Result Card
             </span>
             <h1 className="text-xl sm:text-2xl font-black">{result.testTitle}</h1>
             <p className="text-xs text-blue-200">
-              Candidate: {result.candidateName} • Submitted on{' '}
+              Candidate: <span className="font-bold text-white">{result.candidateName}</span> • Submitted on{' '}
               {new Date(result.submittedAt).toLocaleString()}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowPdfSide(!showPdfSide)}
-              className="px-3 py-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white rounded border border-white/20 transition-all flex items-center gap-1 cursor-pointer"
+            <a
+              href="#paper-review-section"
+              className="px-3.5 py-1.5 text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white rounded shadow-xs transition-all flex items-center gap-1.5"
             >
-              <ExternalLinkIcon className="w-3.5 h-3.5" />
-              <span>{showPdfSide ? 'Hide Question Paper' : 'View Question Paper'}</span>
-            </button>
+              <span>Verify Answers with PDF ↓</span>
+            </a>
             <Link
               href="/"
               className="px-4 py-1.5 text-xs font-bold bg-white text-[#1e3a8a] hover:bg-blue-50 rounded shadow-xs transition-all"
@@ -131,321 +152,440 @@ export default function ResultPage({
       </header>
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-6 space-y-6">
-        {/* PDF Popout / Collapsible Split View */}
-        {showPdfSide && (
-          <div className="bg-white border border-gray-300 rounded-lg shadow-md p-3">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-200 mb-2">
-              <span className="font-bold text-sm text-gray-800">
-                Question Paper Reference: {result.testTitle}
-              </span>
+        {/* ========================================================================= */}
+        {/* SECTION 1: RESULT AND PERFORMANCE ANALYSIS                                */}
+        {/* ========================================================================= */}
+        <section className="space-y-4">
+          {/* Overview Score Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            {/* Card 1: Total Marks */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Total Marks</span>
+              <div className="my-2">
+                <span className="text-3xl sm:text-4xl font-black text-[#1e3a8a]">
+                  {result.totalScore}
+                </span>
+                <span className="text-slate-400 font-bold text-lg"> / {result.maxScore}</span>
+              </div>
+              <div className="text-xs font-semibold text-slate-600">
+                Score: {Math.round((result.totalScore / result.maxScore) * 100)}%
+              </div>
+            </div>
+
+            {/* Card 2: Overall Accuracy */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Overall Accuracy</span>
+              <div className="my-2">
+                <span
+                  className={`text-3xl sm:text-4xl font-black ${
+                    result.overallAccuracy >= 75
+                      ? 'text-green-600'
+                      : result.overallAccuracy >= 50
+                      ? 'text-amber-600'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {result.overallAccuracy}%
+                </span>
+              </div>
+              <div className="text-xs font-semibold text-slate-600">
+                {result.totalCorrect} of {result.totalAttempted} attempted correct
+              </div>
+            </div>
+
+            {/* Card 3: Attempt Breakdown */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Attempt Summary</span>
+              <div className="my-1 flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-slate-800">
+                  {result.totalAttempted}
+                </span>
+                <span className="text-xs text-slate-500">/ {result.totalQuestions} questions</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs pt-1 border-t border-slate-100">
+                <span className="text-green-600 font-bold">✓ {result.totalCorrect} Correct</span>
+                <span className="text-red-600 font-bold">✗ {result.totalIncorrect} Wrong</span>
+                <span className="text-slate-500 font-bold">○ {result.totalUnattempted} Left</span>
+              </div>
+            </div>
+
+            {/* Card 4: Time Spent */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Time Taken</span>
+              <div className="my-2 flex items-center gap-2">
+                <ClockIcon className="w-6 h-6 text-blue-600 shrink-0" />
+                <span className="text-xl sm:text-2xl font-bold font-mono text-slate-800">
+                  {formatDuration(result.timeTakenSeconds)}
+                </span>
+              </div>
+              <div className="text-xs font-semibold text-slate-600">
+                Duration: {result.durationMinutes} minutes
+              </div>
+            </div>
+          </div>
+
+          {/* Subject-Wise Performance Breakdown Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChartIcon className="w-5 h-5 text-blue-700" />
+              <h2 className="font-bold text-base sm:text-lg text-slate-900">
+                Subject-wise Performance Breakdown
+              </h2>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <th className="p-3">Subject</th>
+                    <th className="p-3 text-center">Score</th>
+                    <th className="p-3 text-center">Max Marks</th>
+                    <th className="p-3 text-center">Attempted</th>
+                    <th className="p-3 text-center text-green-700">Correct</th>
+                    <th className="p-3 text-center text-red-600">Wrong</th>
+                    <th className="p-3 text-center text-slate-500">Left</th>
+                    <th className="p-3 text-center">Accuracy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.subjectResults.map((sub) => (
+                    <tr key={sub.subjectId} className="border-b border-slate-100 hover:bg-slate-50/70 font-medium">
+                      <td className="p-3 font-bold text-slate-900">{sub.subjectName}</td>
+                      <td className="p-3 text-center font-black text-blue-900 text-base">{sub.score}</td>
+                      <td className="p-3 text-center text-slate-600">{sub.maxScore}</td>
+                      <td className="p-3 text-center">{sub.attempted} / {sub.totalQuestions}</td>
+                      <td className="p-3 text-center font-bold text-green-700">{sub.correct}</td>
+                      <td className="p-3 text-center font-bold text-red-600">{sub.incorrect}</td>
+                      <td className="p-3 text-center text-slate-500">{sub.unattempted}</td>
+                      <td className="p-3 text-center">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded font-bold text-xs ${
+                            sub.accuracy >= 75
+                              ? 'bg-green-100 text-green-800'
+                              : sub.accuracy >= 50
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {sub.accuracy}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* SECTION 2: SPLIT SCREEN (LEFT: WHOLE PDF FILE, RIGHT: QUESTION PALETTE)   */}
+        {/* ========================================================================= */}
+        <section id="paper-review-section" className="space-y-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-1 border-b border-slate-300">
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                <span>📄 Full Question Paper &amp; Solutions Verification</span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Left half displays the complete original PDF (with questions &amp; solutions); right half shows your response palette.
+              </p>
+            </div>
+            {result.pdfUrl && (
               <a
                 href={result.pdfUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                className="text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 bg-white px-3 py-1.5 rounded border border-slate-300 shadow-2xs"
               >
-                Open in new tab <ExternalLinkIcon className="w-3 h-3" />
+                <span>Open Full PDF in New Tab</span>
+                <ExternalLinkIcon className="w-3.5 h-3.5" />
               </a>
-            </div>
-            <iframe
-              src={`${result.pdfUrl}#toolbar=1&navpanes=0`}
-              className="w-full h-[500px] border rounded"
-              title="Question Paper PDF"
-            />
-          </div>
-        )}
-
-        {/* Overview Score Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          {/* Card 1: Total Marks */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs flex flex-col justify-between">
-            <span className="text-xs font-bold uppercase text-gray-500">Total Marks</span>
-            <div className="my-2">
-              <span className="text-3xl sm:text-4xl font-extrabold text-[#1e3a8a]">
-                {result.totalScore}
-              </span>
-              <span className="text-gray-400 font-bold text-lg"> / {result.maxScore}</span>
-            </div>
-            <div className="text-xs font-medium text-gray-600">
-              Percentage: {Math.round((result.totalScore / result.maxScore) * 100)}%
-            </div>
+            )}
           </div>
 
-          {/* Card 2: Overall Accuracy */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs flex flex-col justify-between">
-            <span className="text-xs font-bold uppercase text-gray-500">Overall Accuracy</span>
-            <div className="my-2">
-              <span
-                className={`text-3xl sm:text-4xl font-extrabold ${
-                  result.overallAccuracy >= 75
-                    ? 'text-green-600'
-                    : result.overallAccuracy >= 50
-                    ? 'text-amber-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {result.overallAccuracy}%
-              </span>
-            </div>
-            <div className="text-xs font-medium text-gray-600">
-              {result.totalCorrect} of {result.totalAttempted} attempted correct
-            </div>
-          </div>
+          {/* Split Container: Left PDF (55%) + Right Question Palette (45%) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            
+            {/* LEFT HALF: THE WHOLE PDF FILE */}
+            <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>📄</span>
+                  <span>Complete Question Paper &amp; Detailed Solutions PDF</span>
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Scroll freely to check questions &amp; solutions
+                </span>
+              </div>
 
-          {/* Card 3: Attempt Breakdown */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs flex flex-col justify-between">
-            <span className="text-xs font-bold uppercase text-gray-500">Attempt Summary</span>
-            <div className="my-1 flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-extrabold text-gray-800">
-                {result.totalAttempted}
-              </span>
-              <span className="text-xs text-gray-500">/ {result.totalQuestions} questions</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs pt-1 border-t border-gray-100">
-              <span className="text-green-600 font-bold">✓ {result.totalCorrect}</span>
-              <span className="text-red-600 font-bold">✗ {result.totalIncorrect}</span>
-              <span className="text-gray-500 font-bold">○ {result.totalUnattempted}</span>
-            </div>
-          </div>
-
-          {/* Card 4: Time Spent */}
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs flex flex-col justify-between">
-            <span className="text-xs font-bold uppercase text-gray-500">Time Taken</span>
-            <div className="my-2 flex items-center gap-2">
-              <ClockIcon className="w-6 h-6 text-blue-600 shrink-0" />
-              <span className="text-xl sm:text-2xl font-bold font-mono text-gray-800">
-                {formatDuration(result.timeTakenSeconds)}
-              </span>
-            </div>
-            <div className="text-xs font-medium text-gray-600">
-              Allotted: {result.durationMinutes} minutes
-            </div>
-          </div>
-        </div>
-
-        {/* Subject-Wise Performance Breakdown */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChartIcon className="w-5 h-5 text-blue-700" />
-            <h2 className="font-bold text-base sm:text-lg text-gray-900">
-              Subject-wise Performance Breakdown
-            </h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
-                  <th className="p-3">Subject</th>
-                  <th className="p-3 text-center">Score</th>
-                  <th className="p-3 text-center">Max Marks</th>
-                  <th className="p-3 text-center">Attempted</th>
-                  <th className="p-3 text-center text-green-700">Correct</th>
-                  <th className="p-3 text-center text-red-600">Incorrect</th>
-                  <th className="p-3 text-center text-gray-500">Unattempted</th>
-                  <th className="p-3 text-center">Accuracy</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.subjectResults.map((sub) => (
-                  <tr key={sub.subjectId} className="border-b border-gray-100 hover:bg-gray-50 font-medium">
-                    <td className="p-3 font-bold text-gray-900">{sub.subjectName}</td>
-                    <td className="p-3 text-center font-extrabold text-blue-900 text-base">{sub.score}</td>
-                    <td className="p-3 text-center text-gray-600">{sub.maxScore}</td>
-                    <td className="p-3 text-center">{sub.attempted} / {sub.totalQuestions}</td>
-                    <td className="p-3 text-center font-bold text-green-700">{sub.correct}</td>
-                    <td className="p-3 text-center font-bold text-red-600">{sub.incorrect}</td>
-                    <td className="p-3 text-center text-gray-500">{sub.unattempted}</td>
-                    <td className="p-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${
-                          sub.accuracy >= 75
-                            ? 'bg-green-100 text-green-800'
-                            : sub.accuracy >= 50
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {sub.accuracy}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Detailed Question Review Table & Filtering */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-xs p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-            <h2 className="font-bold text-base sm:text-lg text-gray-900">
-              Question-wise Detailed Review ({filteredReviews.length} of {result.totalQuestions})
-            </h2>
-
-            {/* Filter buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="font-semibold text-gray-500 mr-1">Filter:</span>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
-                  statusFilter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                All ({result.totalQuestions})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('correct')}
-                className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
-                  statusFilter === 'correct'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-green-700 hover:bg-green-50'
-                }`}
-              >
-                Correct ({result.totalCorrect})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('incorrect')}
-                className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
-                  statusFilter === 'incorrect'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-100 text-red-600 hover:bg-red-50'
-                }`}
-              >
-                Incorrect ({result.totalIncorrect})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('unattempted')}
-                className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
-                  statusFilter === 'unattempted'
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Left ({result.totalUnattempted})
-              </button>
-            </div>
-          </div>
-
-          {/* Subject Filter Tabs */}
-          <div className="flex items-center gap-1 mb-4 border-b border-gray-200 pb-2">
-            <button
-              onClick={() => setSubjectFilter('all')}
-              className={`px-3 py-1 text-xs font-bold rounded cursor-pointer ${
-                subjectFilter === 'all'
-                  ? 'bg-blue-100 text-blue-900'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              All Subjects
-            </button>
-            {result.subjectResults.map((sub) => (
-              <button
-                key={sub.subjectId}
-                onClick={() => setSubjectFilter(sub.subjectId)}
-                className={`px-3 py-1 text-xs font-bold rounded cursor-pointer ${
-                  subjectFilter === sub.subjectId
-                    ? 'bg-blue-100 text-blue-900'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {sub.subjectName}
-              </button>
-            ))}
-          </div>
-
-          {/* Question Grid / Table */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredReviews.map((item) => (
-              <div
-                key={item.questionNumber}
-                className={`p-3 rounded-lg border transition-all flex flex-col justify-between ${
-                  item.status === 'correct'
-                    ? 'border-green-200 bg-green-50/40'
-                    : item.status === 'incorrect'
-                    ? 'border-red-200 bg-red-50/40'
-                    : 'border-gray-200 bg-gray-50/40'
-                }`}
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-gray-200/60 mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-gray-900">
-                      Q.{item.questionNumber}
-                    </span>
-                    <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-600 font-medium">
-                      {item.subjectName}
-                    </span>
-                  </div>
-
-                  {/* Status Indicator */}
-                  <div>
-                    {item.status === 'correct' ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">
-                        <CheckCircleIcon className="w-3.5 h-3.5" /> +{item.marksAwarded}
-                      </span>
-                    ) : item.status === 'incorrect' ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
-                        <XCircleIcon className="w-3.5 h-3.5" /> {item.marksAwarded}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
-                        0 (Left)
-                      </span>
-                    )}
-                  </div>
+              {result.pdfUrl ? (
+                <div className="w-full bg-slate-900" style={{ height: '760px' }}>
+                  <iframe
+                    src={`${result.pdfUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                    className="w-full h-full border-none"
+                    title={`Complete Question Paper - ${result.testTitle}`}
+                  />
                 </div>
+              ) : (
+                <div className="p-12 text-center text-slate-400">
+                  No PDF file available for this examination.
+                </div>
+              )}
+            </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-white p-2 rounded border border-gray-100">
-                    <span className="text-gray-400 block text-[10px] font-semibold uppercase">
-                      Your Answer
-                    </span>
-                    <span
-                      className={`font-bold text-sm ${
-                        item.selectedOption
-                          ? item.isCorrect
-                            ? 'text-green-700'
-                            : 'text-red-600'
-                          : 'text-gray-400 italic'
+            {/* RIGHT HALF: QUESTION NUMBERS, STATUS & PALETTE */}
+            <div className="lg:col-span-5 flex flex-col gap-3">
+              
+              {/* Palette Card */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                {/* Palette Filters & Legend */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                    Question Palette ({filteredReviews.length})
+                  </span>
+
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('all')}
+                      className={`text-[11px] px-2 py-0.5 rounded font-bold cursor-pointer transition-colors ${
+                        statusFilter === 'all'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      {item.selectedOption
-                        ? /^[A-D]$/i.test(item.selectedOption)
-                          ? `Option (${item.selectedOption})`
-                          : `Value: ${item.selectedOption}`
-                        : 'Not Attempted'}
-                    </span>
-                  </div>
-
-                  <div className="bg-white p-2 rounded border border-gray-100">
-                    <span className="text-gray-400 block text-[10px] font-semibold uppercase">
-                      Correct Key
-                    </span>
-                    <span className="font-bold text-sm text-green-800">
-                      {item.correctOption
-                        ? /^[A-D]$/i.test(item.correctOption)
-                          ? `Option (${item.correctOption})`
-                          : `Value: ${item.correctOption}`
-                        : 'N/A'}
-                    </span>
+                      All ({result.totalQuestions})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('correct')}
+                      className={`text-[11px] px-2 py-0.5 rounded font-bold cursor-pointer transition-colors ${
+                        statusFilter === 'correct'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-50 text-green-700 hover:bg-green-100'
+                      }`}
+                    >
+                      ✓ {result.totalCorrect}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('incorrect')}
+                      className={`text-[11px] px-2 py-0.5 rounded font-bold cursor-pointer transition-colors ${
+                        statusFilter === 'incorrect'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-red-50 text-red-700 hover:bg-red-100'
+                      }`}
+                    >
+                      ✗ {result.totalIncorrect}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('unattempted')}
+                      className={`text-[11px] px-2 py-0.5 rounded font-bold cursor-pointer transition-colors ${
+                        statusFilter === 'unattempted'
+                          ? 'bg-slate-700 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      ○ {result.totalUnattempted}
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
 
-          {filteredReviews.length === 0 && (
-            <div className="py-12 text-center text-gray-500 text-sm">
-              No questions match the selected filter.
+                {/* Subject Filter Pills */}
+                <div className="flex items-center gap-1.5 py-2.5 overflow-x-auto text-xs border-b border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSubjectFilter('all')}
+                    className={`px-2.5 py-0.5 rounded font-bold text-xs cursor-pointer whitespace-nowrap ${
+                      subjectFilter === 'all'
+                        ? 'bg-slate-800 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All Subjects
+                  </button>
+                  {result.subjectResults.map((sub) => (
+                    <button
+                      key={sub.subjectId}
+                      type="button"
+                      onClick={() => setSubjectFilter(sub.subjectId)}
+                      className={`px-2.5 py-0.5 rounded font-bold text-xs cursor-pointer whitespace-nowrap ${
+                        subjectFilter === sub.subjectId
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {sub.subjectName}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Palette Grid (Buttons 1..N) */}
+                <div className="pt-3 max-h-[220px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-7 sm:grid-cols-9 gap-1.5">
+                    {filteredReviews.map((item) => {
+                      const isSelected = item.questionNumber === selectedQNumber;
+                      let bgClass = 'bg-slate-200 text-slate-700 border-slate-300';
+                      if (item.status === 'correct') {
+                        bgClass = 'bg-green-600 text-white border-green-700 hover:bg-green-700';
+                      } else if (item.status === 'incorrect') {
+                        bgClass = 'bg-red-600 text-white border-red-700 hover:bg-red-700';
+                      } else {
+                        bgClass = 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300';
+                      }
+
+                      return (
+                        <button
+                          key={item.questionNumber}
+                          type="button"
+                          onClick={() => setSelectedQNumber(item.questionNumber)}
+                          className={`h-8 rounded font-bold text-xs border flex items-center justify-center cursor-pointer transition-all ${bgClass} ${
+                            isSelected
+                              ? 'ring-3 ring-blue-500 ring-offset-1 scale-105 shadow-md z-10'
+                              : 'shadow-2xs'
+                          }`}
+                          title={`Q.${item.questionNumber} - ${item.status.toUpperCase()}`}
+                        >
+                          {item.questionNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Legend indicator */}
+                <div className="flex items-center justify-center gap-4 text-[11px] pt-3 text-slate-600 border-t border-slate-100 mt-3">
+                  <span className="flex items-center gap-1 font-semibold">
+                    <span className="w-3 h-3 rounded-full bg-green-600 inline-block" /> Correct (+4)
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <span className="w-3 h-3 rounded-full bg-red-600 inline-block" /> Wrong (-1)
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <span className="w-3 h-3 rounded-full bg-slate-300 inline-block" /> Left (0)
+                  </span>
+                </div>
+              </div>
+
+              {/* Selected Question Detailed Inspection Card */}
+              {selectedQuestion && (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col gap-3">
+                  {/* Card Header: Q Number, Subject & Status Pill */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-base text-slate-900">
+                        Q.{selectedQuestion.questionNumber}
+                      </span>
+                      <span className="text-xs uppercase font-extrabold bg-blue-100 text-blue-900 px-2 py-0.5 rounded border border-blue-200">
+                        {selectedQuestion.subjectName}
+                      </span>
+                    </div>
+
+                    {/* Status Pill */}
+                    <div>
+                      {selectedQuestion.status === 'correct' ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2.5 py-0.5 rounded-full border border-green-300">
+                          <CheckCircleIcon className="w-3.5 h-3.5" /> Correct (+{selectedQuestion.marksAwarded} Marks)
+                        </span>
+                      ) : selectedQuestion.status === 'incorrect' ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-300">
+                          <XCircleIcon className="w-3.5 h-3.5" /> Wrong ({selectedQuestion.marksAwarded} Marks)
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-300">
+                          Left / Unattempted (0 Marks)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Answers Comparison Box */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Candidate's answer */}
+                    <div className="p-3 rounded-lg border bg-slate-50 border-slate-200">
+                      <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                        Your Marked Response
+                      </span>
+                      <span
+                        className={`font-black text-base ${
+                          selectedQuestion.selectedOption
+                            ? selectedQuestion.isCorrect
+                              ? 'text-green-700'
+                              : 'text-red-600'
+                            : 'text-slate-400 italic'
+                        }`}
+                      >
+                        {selectedQuestion.selectedOption
+                          ? /^[A-D]$/i.test(selectedQuestion.selectedOption)
+                            ? `Option (${selectedQuestion.selectedOption.toUpperCase()})`
+                            : `Value: ${selectedQuestion.selectedOption}`
+                          : 'Not Attempted'}
+                      </span>
+                    </div>
+
+                    {/* Official Key */}
+                    <div className="p-3 rounded-lg border bg-green-50/60 border-green-200">
+                      <span className="text-[10px] font-bold uppercase text-green-800 block mb-1">
+                        Official Correct Key
+                      </span>
+                      <span className="font-black text-base text-green-800">
+                        {selectedQuestion.correctOption
+                          ? /^[A-D]$/i.test(selectedQuestion.correctOption)
+                            ? `Option (${selectedQuestion.correctOption.toUpperCase()})`
+                            : `Value: ${selectedQuestion.correctOption}`
+                          : 'Pending Key'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Render Question Text if parsed */}
+                  {selectedQuestion.questionText && (
+                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                      <span className="font-bold text-slate-900 block mb-1">Question Statement:</span>
+                      {selectedQuestion.questionText}
+                    </div>
+                  )}
+
+                  {/* Render Solution / Explanation if available */}
+                  {selectedQuestion.solution && (
+                    <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-900 leading-relaxed max-h-48 overflow-y-auto">
+                      <span className="font-bold text-blue-950 block mb-1 flex items-center gap-1">
+                        <span>💡</span>
+                        <span>Step-by-Step Solution / Explanation:</span>
+                      </span>
+                      {selectedQuestion.solution}
+                    </div>
+                  )}
+
+                  {/* Prev / Next Navigation in Palette */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={handlePrevQuestion}
+                      className="px-3 py-1.5 rounded font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 cursor-pointer"
+                    >
+                      ← Previous Question
+                    </button>
+                    <span className="text-slate-400 font-semibold">
+                      Q.{selectedQuestion.questionNumber} of {result.totalQuestions}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleNextQuestion}
+                      className="px-3 py-1.5 rounded font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 cursor-pointer"
+                    >
+                      Next Question →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+          </div>
+        </section>
       </main>
     </div>
   );

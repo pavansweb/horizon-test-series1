@@ -35,6 +35,7 @@ export async function PUT(
       pdfEndPage: body.pdfEndPage !== undefined ? Number(body.pdfEndPage) : existing.pdfEndPage,
       integerQuestions: body.integerQuestions !== undefined ? body.integerQuestions : existing.integerQuestions,
       subjects,
+      questions: body.questions !== undefined ? body.questions : existing.questions,
       markingScheme,
       answerKey: body.answerKey !== undefined ? body.answerKey : existing.answerKey,
       status: body.status !== undefined ? body.status : existing.status,

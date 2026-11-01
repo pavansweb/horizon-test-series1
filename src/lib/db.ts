@@ -129,6 +129,12 @@ function hydrateTest(row: DbRow | Test): Test {
         : Array.isArray(markingScheme._integerQuestions)
         ? (markingScheme._integerQuestions as number[])
         : undefined,
+    questions:
+      Array.isArray(r.questions) && r.questions.length > 0
+        ? (r.questions as Test['questions'])
+        : Array.isArray(markingScheme._questions)
+        ? (markingScheme._questions as Test['questions'])
+        : undefined,
     pdfStartPage:
       r.pdfStartPage !== undefined && r.pdfStartPage !== null
         ? Number(r.pdfStartPage)
@@ -153,7 +159,7 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
   if (!fallbackMode) {
     return { ...test } as unknown as DbRow;
   }
-  const { integerQuestions, pdfStartPage, pdfEndPage, ...base } = test;
+  const { integerQuestions, pdfStartPage, pdfEndPage, questions, ...base } = test;
   return {
     ...base,
     markingScheme: {
@@ -161,6 +167,7 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
       _integerQuestions: integerQuestions || [],
       _pdfStartPage: pdfStartPage || 1,
       _pdfEndPage: pdfEndPage || null,
+      _questions: questions || [],
     },
   } as unknown as DbRow;
 }
@@ -232,7 +239,17 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
 
   const totalQuestions = test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
 
-  // Return public representation - strictly omitting answerKey
+  // Return public representation - strictly omitting answerKey and question solutions!
+  const publicQuestions = test.questions?.map((q) => ({
+    questionNumber: q.questionNumber,
+    subjectId: q.subjectId,
+    type: q.type,
+    questionText: q.questionText,
+    options: q.options,
+    marks: q.marks,
+    negativeMarks: q.negativeMarks,
+  }));
+
   const publicTest: PublicTest = {
     id: test.id,
     title: test.title,
@@ -244,6 +261,7 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
     pdfEndPage: test.pdfEndPage,
     integerQuestions: test.integerQuestions,
     subjects: test.subjects,
+    questions: publicQuestions,
     markingScheme: test.markingScheme,
     totalQuestions: totalQuestions || 75,
     status: test.status,

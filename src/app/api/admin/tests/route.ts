@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAuthenticatedAdmin } from '@/lib/auth';
 import { getAllTests, createTest } from '@/lib/db';
 import { savePdf } from '@/lib/storage';
-import { SubjectConfig, MarkingScheme } from '@/lib/types';
+import { SubjectConfig, MarkingScheme, TestQuestion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     let subjects: SubjectConfig[] = [];
     let markingScheme: MarkingScheme = { correct: 4, incorrect: -1, unattempted: 0 };
     let answerKey: Record<number, string> = {};
+    let questions: TestQuestion[] | undefined = undefined;
     let status: 'draft' | 'published' = 'published';
 
     if (contentType.includes('multipart/form-data')) {
@@ -97,6 +98,13 @@ export async function POST(request: NextRequest) {
       } catch {
         answerKey = {};
       }
+
+      try {
+        const rawQuestions = formData.get('questions') as string;
+        if (rawQuestions) questions = JSON.parse(rawQuestions);
+      } catch {
+        questions = undefined;
+      }
     } else {
       const body = await request.json();
       title = body.title || 'JEE Main Mock Test';
@@ -109,6 +117,7 @@ export async function POST(request: NextRequest) {
       subjects = body.subjects || [];
       markingScheme = body.markingScheme || { correct: 4, incorrect: -1, unattempted: 0 };
       answerKey = body.answerKey || {};
+      questions = body.questions || undefined;
       status = body.status === 'draft' ? 'draft' : 'published';
     }
 
@@ -142,6 +151,7 @@ export async function POST(request: NextRequest) {
       pdfEndPage,
       integerQuestions,
       subjects,
+      questions,
       markingScheme,
       answerKey,
       status,

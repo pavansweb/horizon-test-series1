@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Test, SubjectConfig, MarkingScheme } from '@/lib/types';
+import { Test, SubjectConfig, MarkingScheme, TestQuestion } from '@/lib/types';
 import { AnswerKeyEditor } from './AnswerKeyEditor';
 import { UploadIcon, CheckIcon } from '@/components/icons/Icons';
 import { parseUniversalAnswerKey } from '@/lib/answerKeyParser';
@@ -57,8 +57,9 @@ export function TestFormModal({
   const [markingIncorrect, setMarkingIncorrect] = useState<number>(-1);
   const [markingUnattempted, setMarkingUnattempted] = useState<number>(0);
 
-  // Answer Key
+  // Answer Key & Structured Questions
   const [answerKey, setAnswerKey] = useState<Record<number, string>>({});
+  const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [status, setStatus] = useState<'draft' | 'published'>('published');
 
   const [activeTab, setActiveTab] = useState<'details' | 'subjects' | 'answers'>('details');
@@ -134,6 +135,7 @@ export function TestFormModal({
       setPdfStartPage(testToEdit.pdfStartPage || 1);
       setPdfEndPage(testToEdit.pdfEndPage || undefined);
       setAnswerKey(testToEdit.answerKey || {});
+      setQuestions(testToEdit.questions || []);
       setStatus(testToEdit.status);
 
       setMarkingCorrect(testToEdit.markingScheme?.correct ?? 4);
@@ -163,6 +165,7 @@ export function TestFormModal({
       setMarkingIncorrect(-1);
       setMarkingUnattempted(0);
       setAnswerKey({});
+      setQuestions([]);
       setStatus('published');
       setPdfFile(null);
     }
@@ -361,16 +364,30 @@ export function TestFormModal({
         );
       }
 
+      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        setQuestions(parsed.questions);
+        const derivedKey: Record<number, string> = {};
+        parsed.questions.forEach((q: TestQuestion) => {
+          if (q.questionNumber && q.correctAnswer) {
+            derivedKey[q.questionNumber] = q.correctAnswer;
+          }
+        });
+        if (Object.keys(derivedKey).length > 0) {
+          setAnswerKey((prev) => ({ ...derivedKey, ...prev }));
+        }
+      }
+
       const answersFound = Object.keys(parsed.answerKey || {}).length;
       if (answersFound > 0) {
         setAnswerKey((prev) => ({ ...prev, ...parsed.answerKey }));
       }
 
       const orderNames = (parsed.subjects || []).map((s: { name: string }) => s.name).join(' → ');
+      const questionsExtracted = (parsed.questions || []).length;
       setGeminiNotice(
         `✨ Gemini auto-format complete (${result.modelUsed})! Title: "${parsed.title || 'JEE Paper'}" • Order: ${orderNames || 'Default'} • ${
-          answersFound > 0 ? `${answersFound} answers extracted` : 'Paper structure ready'
-        }.`
+          questionsExtracted > 0 ? `${questionsExtracted} actual questions formatted • ` : ''
+        }${answersFound > 0 ? `${answersFound} answers extracted` : 'Paper structure ready'}.`
       );
     } catch (err: unknown) {
       console.error('Gemini error:', err);
@@ -419,6 +436,7 @@ export function TestFormModal({
             pdfEndPage: pdfEndPage ? Number(pdfEndPage) : null,
             subjects,
             integerQuestions: computedIntegerQuestions,
+            questions: questions.length > 0 ? questions : undefined,
             markingScheme,
             answerKey,
             status,
@@ -447,6 +465,9 @@ export function TestFormModal({
         formData.append('integerQuestions', JSON.stringify(computedIntegerQuestions));
         formData.append('markingScheme', JSON.stringify(markingScheme));
         formData.append('answerKey', JSON.stringify(answerKey));
+        if (questions.length > 0) {
+          formData.append('questions', JSON.stringify(questions));
+        }
         formData.append('status', status);
 
         const res = await fetch('/api/admin/tests', {

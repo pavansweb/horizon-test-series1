@@ -6,6 +6,7 @@ import { PublicTest, CandidateResponseMap, QuestionStatus, isIntegerQuestion } f
 import { NtaHeader } from '@/components/nta/NtaHeader';
 import { NtaSubjectBar } from '@/components/nta/NtaSubjectBar';
 import { NtaPdfViewer } from '@/components/nta/NtaPdfViewer';
+import { NtaQuestionDisplay } from '@/components/nta/NtaQuestionDisplay';
 import { NtaOptionSelector } from '@/components/nta/NtaOptionSelector';
 import { NtaActionBar } from '@/components/nta/NtaActionBar';
 import { NtaQuestionPalette } from '@/components/nta/NtaQuestionPalette';
@@ -454,22 +455,39 @@ export default function TestAttemptPage({
               background: '#ffffff',
             }}
           >
-            {/* Scrollable Compact PDF Question Embed */}
-            <NtaPdfViewer
-              pdfUrl={test.pdfUrl}
-              currentQuestionNumber={currentQuestionNumber}
-              startPage={test.pdfStartPage}
-              endPage={test.pdfEndPage}
-            />
+            {/* Render actual structured question if available, otherwise fallback to PDF viewer */}
+            {test.questions && test.questions.length > 0 && test.questions.find((q) => q.questionNumber === currentQuestionNumber) ? (
+              <NtaQuestionDisplay
+                question={test.questions.find((q) => q.questionNumber === currentQuestionNumber)!}
+                currentQuestionNumber={currentQuestionNumber}
+                totalQuestions={totalQuestionsCount}
+                selectedOption={selectedOption}
+                onSelectOption={(opt) => setSelectedOption(opt)}
+                onClearResponse={handleClearResponse}
+                pdfUrl={test.pdfUrl}
+                pdfStartPage={test.pdfStartPage}
+                pdfEndPage={test.pdfEndPage}
+              />
+            ) : (
+              <>
+                {/* Scrollable Compact PDF Question Embed */}
+                <NtaPdfViewer
+                  pdfUrl={test.pdfUrl}
+                  currentQuestionNumber={currentQuestionNumber}
+                  startPage={test.pdfStartPage}
+                  endPage={test.pdfEndPage}
+                />
 
-            {/* Vertical Options 1), 2), 3), 4) or Numerical Value Keypad */}
-            <NtaOptionSelector
-              currentQuestionNumber={currentQuestionNumber}
-              selectedOption={selectedOption}
-              onSelectOption={(opt) => setSelectedOption(opt)}
-              onClearResponse={handleClearResponse}
-              isInteger={isIntegerQuestion(currentQuestionNumber, test.integerQuestions)}
-            />
+                {/* Vertical Options 1), 2), 3), 4) or Numerical Value Keypad */}
+                <NtaOptionSelector
+                  currentQuestionNumber={currentQuestionNumber}
+                  selectedOption={selectedOption}
+                  onSelectOption={(opt) => setSelectedOption(opt)}
+                  onClearResponse={handleClearResponse}
+                  isInteger={isIntegerQuestion(currentQuestionNumber, test.integerQuestions)}
+                />
+              </>
+            )}
 
             {/* The Bottomline Divider */}
             <div style={{ borderTop: '1.5px solid #cbd5e1', width: '100%', margin: 0, flexShrink: 0 }} />

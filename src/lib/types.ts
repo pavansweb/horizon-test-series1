@@ -14,6 +14,34 @@ export interface MarkingScheme {
   unattempted: number;  // e.g. 0
 }
 
+export interface QuestionOption {
+  id: 'A' | 'B' | 'C' | 'D' | string;
+  text: string;
+}
+
+export interface TestQuestion {
+  questionNumber: number;
+  subjectId: SubjectId;
+  type: 'mcq' | 'numerical';
+  questionText: string;
+  options?: QuestionOption[];
+  correctAnswer: string;       // 'A', 'B', 'C', 'D' or numerical string e.g. '15'
+  solution?: string;          // Step-by-step solution / explanation
+  marks?: number;             // Defaults to test markingScheme.correct (e.g. 4)
+  negativeMarks?: number;     // Defaults to test markingScheme.incorrect (e.g. -1)
+}
+
+// Public question representation sent to student CBT - STRICTLY EXCLUDES correctAnswer and solution!
+export interface PublicQuestion {
+  questionNumber: number;
+  subjectId: SubjectId;
+  type: 'mcq' | 'numerical';
+  questionText: string;
+  options?: QuestionOption[];
+  marks?: number;
+  negativeMarks?: number;
+}
+
 export interface Test {
   id: string;
   title: string;
@@ -25,6 +53,7 @@ export interface Test {
   pdfEndPage?: number;
   integerQuestions?: number[];
   subjects: SubjectConfig[];
+  questions?: TestQuestion[];
   markingScheme: MarkingScheme;
   answerKey: Record<number, string>; // questionNumber (1..N) -> 'A' | 'B' | 'C' | 'D' or integer e.g. '5'
   status: 'draft' | 'published';
@@ -32,7 +61,7 @@ export interface Test {
   updatedAt: string;
 }
 
-// Public view of test sent to the student CBT interface - STRICTLY NO answerKey!
+// Public view of test sent to the student CBT interface - STRICTLY NO answerKey or solutions!
 export interface PublicTest {
   id: string;
   title: string;
@@ -44,6 +73,7 @@ export interface PublicTest {
   pdfEndPage?: number;
   integerQuestions?: number[];
   subjects: SubjectConfig[];
+  questions?: PublicQuestion[];
   markingScheme: MarkingScheme;
   totalQuestions: number;
   status: 'published';
@@ -108,6 +138,10 @@ export interface QuestionReviewItem {
   isAttempted: boolean;
   marksAwarded: number;
   status: 'correct' | 'incorrect' | 'unattempted';
+  questionText?: string;
+  options?: QuestionOption[];
+  solution?: string;
+  type?: 'mcq' | 'numerical';
 }
 
 export interface TestResult {

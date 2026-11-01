@@ -51,8 +51,11 @@ export function calculateTestResult(
       (s) => qNum >= s.startQuestion && qNum <= s.endQuestion
     ) || subjects[0];
 
+    // Find structured question if available
+    const structQ = test.questions?.find((q) => q.questionNumber === qNum);
+
     const rawSelected = candidateResponses[qNum]?.trim().toUpperCase() || null;
-    const rawCorrect = (answerKey[qNum] || '').trim().toUpperCase();
+    const rawCorrect = (structQ?.correctAnswer || answerKey[qNum] || '').trim().toUpperCase();
 
     // Normalize option formats: '1' -> 'A', '2' -> 'B', '3' -> 'C', '4' -> 'D'
     const normalizeOpt = (opt: string | null): string => {
@@ -68,7 +71,7 @@ export function calculateTestResult(
     const correctOption = rawCorrect;
 
     const isAttempted = !!selectedOption;
-    const isIntQ = isIntegerQuestion(qNum, test.integerQuestions);
+    const isIntQ = structQ ? structQ.type === 'numerical' : isIntegerQuestion(qNum, test.integerQuestions);
     let isCorrect = false;
 
     if (isAttempted) {
@@ -86,17 +89,20 @@ export function calculateTestResult(
     }
     let marksAwarded = 0;
 
+    const correctMarks = structQ?.marks ?? markingScheme.correct;
+    const incorrectMarks = structQ?.negativeMarks !== undefined ? -Math.abs(structQ.negativeMarks) : markingScheme.incorrect;
+
     const subStat = subjectResultsMap.get(subject.id)!;
 
     if (isAttempted) {
       totalAttempted++;
       subStat.attempted++;
       if (isCorrect) {
-        marksAwarded = markingScheme.correct;
+        marksAwarded = correctMarks;
         totalCorrect++;
         subStat.correct++;
       } else {
-        marksAwarded = markingScheme.incorrect;
+        marksAwarded = incorrectMarks;
         totalIncorrect++;
         subStat.incorrect++;
       }
@@ -119,6 +125,10 @@ export function calculateTestResult(
       isAttempted,
       marksAwarded,
       status: !isAttempted ? 'unattempted' : isCorrect ? 'correct' : 'incorrect',
+      questionText: structQ?.questionText,
+      options: structQ?.options,
+      solution: structQ?.solution,
+      type: structQ ? structQ.type : isIntQ ? 'numerical' : 'mcq',
     });
   }
 
