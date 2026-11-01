@@ -314,16 +314,16 @@ export function TestFormModal({
     }
   };
 
-  // Google Gemini AI Auto-Formatting handler
+  // Horizon AI Auto-Formatting handler
   const handleAutoFormatWithGemini = async () => {
     if (!pdfFile && !testToEdit?.pdfUrl) {
-      setError('Please select or upload a Question Paper PDF first to format with Gemini AI.');
+      setError('Please select or upload a Question Paper PDF first to format with Horizon AI.');
       return;
     }
 
     try {
       setIsGeminiFormatting(true);
-      setGeminiNotice('✨ Gemini AI is analyzing question paper structure, subject sequence & answer key...');
+      setGeminiNotice('✨ Horizon AI is analyzing question paper structure, subject sequence & formatting questions...');
       setError(null);
 
       const formData = new FormData();
@@ -340,7 +340,7 @@ export function TestFormModal({
 
       const result = await res.json();
       if (!res.ok || !result.success) {
-        throw new Error(result.error || 'Gemini paper analysis failed.');
+        throw new Error(result.error || 'Horizon AI paper analysis failed.');
       }
 
       const parsed = result.data;
@@ -385,13 +385,13 @@ export function TestFormModal({
       const orderNames = (parsed.subjects || []).map((s: { name: string }) => s.name).join(' → ');
       const questionsExtracted = (parsed.questions || []).length;
       setGeminiNotice(
-        `✨ Gemini auto-format complete (${result.modelUsed})! Title: "${parsed.title || 'JEE Paper'}" • Order: ${orderNames || 'Default'} • ${
+        `✨ Horizon AI auto-format complete! Title: "${parsed.title || 'JEE Paper'}" • Order: ${orderNames || 'Default'} • ${
           questionsExtracted > 0 ? `${questionsExtracted} actual questions formatted • ` : ''
         }${answersFound > 0 ? `${answersFound} answers extracted` : 'Paper structure ready'}.`
       );
     } catch (err: unknown) {
-      console.error('Gemini error:', err);
-      setError((err as Error)?.message || 'Gemini auto-formatting failed.');
+      console.error('Horizon AI error:', err);
+      setError((err as Error)?.message || 'Horizon AI auto-formatting failed.');
       setGeminiNotice(null);
     } finally {
       setIsGeminiFormatting(false);
@@ -516,15 +516,15 @@ export function TestFormModal({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Quick Auto-Format with Gemini AI Button in Header */}
+            {/* Quick Auto-Format with Horizon AI Button in Header */}
             <button
               type="button"
               disabled={!pdfPreviewUrl || isGeminiFormatting}
               onClick={handleAutoFormatWithGemini}
-              className="text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white px-3 py-1 rounded shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Analyze paper structure, subject sequence, and extract answers automatically with Gemini AI"
+              className="text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 text-white px-3 py-1 rounded shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Analyze paper structure, subject sequence, and extract questions automatically with Horizon AI"
             >
-              <span>{isGeminiFormatting ? '✨ Analyzing...' : '✨ Gemini Auto-Format'}</span>
+              <span>{isGeminiFormatting ? '✨ Analyzing...' : '✨ Horizon AI Auto-Format'}</span>
             </button>
 
             {/* Toggle Side-by-Side PDF Preview button */}
@@ -660,17 +660,17 @@ export function TestFormModal({
                       </div>
                     </div>
 
-                    {/* Google Gemini AI Auto-Formatting Banner */}
-                    <div className="p-3 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 dark:from-indigo-950/40 dark:via-purple-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-900 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {/* Horizon AI Auto-Formatting Banner */}
+                    <div className="p-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-slate-950/40 border border-blue-200 dark:border-blue-900 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="font-bold text-xs sm:text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                          <span>✨ Google Gemini AI Auto-Formatting</span>
-                          <span className="text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
+                        <div className="font-bold text-xs sm:text-sm text-blue-950 dark:text-blue-200 flex items-center gap-1.5">
+                          <span>✨ Horizon AI Auto-Formatting</span>
+                          <span className="text-[10px] font-semibold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
                             Fast &amp; Accurate
                           </span>
                         </div>
-                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">
-                          Let Gemini analyze your PDF to auto-detect title, subject order (Chem/Phy/Math), and extract answers!
+                        <p className="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">
+                          Let Horizon AI analyze your PDF to auto-detect title, subject order (Chem/Phy/Math), and format questions!
                         </p>
                       </div>
 
@@ -678,7 +678,7 @@ export function TestFormModal({
                         type="button"
                         disabled={!pdfPreviewUrl || isGeminiFormatting}
                         onClick={handleAutoFormatWithGemini}
-                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs flex-shrink-0"
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs flex-shrink-0"
                       >
                         {isGeminiFormatting ? (
                           <>
@@ -687,7 +687,7 @@ export function TestFormModal({
                           </>
                         ) : (
                           <>
-                            <span>🪄 Auto-Format Paper with Gemini AI</span>
+                            <span>🪄 Auto-Format Paper with Horizon AI</span>
                           </>
                         )}
                       </button>
@@ -998,9 +998,9 @@ export function TestFormModal({
                             type="button"
                             onClick={handleAutoFormatWithGemini}
                             disabled={isGeminiFormatting}
-                            className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                           >
-                            {isGeminiFormatting ? '✨ Extracting with AI...' : '✨ Extract Key with Gemini AI'}
+                            {isGeminiFormatting ? '✨ Extracting with AI...' : '✨ Extract Key with Horizon AI'}
                           </button>
                           <button
                             type="button"
