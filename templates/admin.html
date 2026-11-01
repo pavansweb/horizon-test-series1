@@ -304,14 +304,28 @@
       </div>
       <div style="padding: 20px;">
         <input type="hidden" id="key-test-id">
-        <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
-          Paste answers in formats like <code>1:A, 2:B, 3:C</code> or space-separated letters <code>A B C D A A</code>, or click below.
-        </p>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <p style="font-size: 12px; color: #64748b; margin: 0;">
+            Paste answers in <strong>any format</strong>: Multi-column tables, <code>1: (2), 21: 4</code>, Excel tables, or upload a CSV.
+          </p>
+          <div style="display: flex; gap: 6px;">
+            <input type="file" id="flask-csv-input" accept=".csv,.txt" style="display: none;" onchange="handleFlaskCsvUpload(this)">
+            <button type="button" onclick="document.getElementById('flask-csv-input').click()" class="cbt-btn cbt-btn-outline" style="padding: 4px 10px; font-size: 11px;">
+              📤 Upload CSV
+            </button>
+            <button type="button" onclick="downloadFlaskCsvTemplate()" class="cbt-btn cbt-btn-outline" style="padding: 4px 10px; font-size: 11px;">
+              📥 CSV Template
+            </button>
+          </div>
+        </div>
         <div class="form-row">
-          <textarea id="bulk-key-input" rows="4" placeholder="Paste answers here (e.g. 1:A, 2:B, 3:C)"></textarea>
-          <button type="button" onclick="applyBulkKey()" class="cbt-btn cbt-btn-outline" style="margin-top: 6px; padding: 5px 12px; font-size: 11px;">
-            Apply Bulk Answers
-          </button>
+          <textarea id="bulk-key-input" rows="3" placeholder="Paste ANY format here: e.g. 1 A 26 B 51 C ... or 1: (1), 2: (4), 21: 15 ..."></textarea>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+            <button type="button" onclick="applyBulkKey()" class="cbt-btn cbt-btn-blue" style="padding: 6px 14px; font-size: 11px;">
+              ⚡ Parse &amp; Apply Answers
+            </button>
+            <span id="bulk-status-msg" style="font-size: 11px; font-weight: 700; color: #15803d;"></span>
+          </div>
         </div>
         <div id="key-grid-container" style="max-height: 260px; overflow-y: auto; border: 1px solid #cbd5e1; padding: 8px; border-radius: 4px; margin-top: 10px;"></div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
@@ -526,28 +540,90 @@
       container.appendChild(grid);
     }
 
+    function normalizeFlaskToken(rawVal, q) {
+      if (!rawVal) return '';
+      const isInt = (q >= 21 && q <= 25) || (q >= 45 && q <= 50) || (q >= 70 && q <= 75);
+      const trimmed = String(rawVal).trim();
+      if (isInt) {
+        return trimmed.replace(/^[([{<]+|[)\]}>]+$/g, '').trim();
+      }
+      const upper = trimmed.toUpperCase();
+      const m = upper.match(/^[([{<]?\s*([A-D]|1|2|3|4)\s*[)\]}>.]?$/i);
+      if (m) {
+        const v = m[1];
+        if (v === '1') return 'A';
+        if (v === '2') return 'B';
+        if (v === '3') return 'C';
+        if (v === '4') return 'D';
+        return v;
+      }
+      if (/^[A-D]/i.test(upper)) return upper[0];
+      return upper;
+    }
+
     function applyBulkKey() {
       const text = document.getElementById('bulk-key-input').value;
-      const regex = /(\d+)\s*[:.\-)]\s*([A-D]|[-+]?\d*\.?\d+)/gi;
+      const regex = /(\b\d{1,3}\b)\s*[:.\-)\t]?\s*([A-D]|[-+]?\d*\.?\d+|[(][A-D0-9.\-]+[)])/gi;
       let match;
-      let found = false;
+      let count = 0;
 
       while ((match = regex.exec(text)) !== null) {
-        found = true;
         const q = parseInt(match[1], 10);
-        const opt = match[2].trim().toUpperCase();
-        if (q >= 1 && q <= activeTotalQ) activeKeyMap[q] = opt;
+        const val = match[2];
+        if (q >= 1 && q <= activeTotalQ) {
+          activeKeyMap[q] = normalizeFlaskToken(val, q);
+          count++;
+        }
       }
 
-      if (!found) {
-        const tokens = text.trim().split(/[\s,;]+/).filter(t => /^[A-D]$/i.test(t) || /^[-+]?\d*\.?\d+$/.test(t));
-        tokens.forEach((opt, idx) => {
-          const q = idx + 1;
-          if (q <= activeTotalQ) activeKeyMap[q] = opt.toUpperCase();
-        });
+      if (count === 0) {
+        const tokens = text.replace(/[,;]/g, ' ').split(/\s+/).filter(Boolean);
+        let currQ = 1;
+        for (const tok of tokens) {
+          if (currQ > activeTotalQ) break;
+          const asNum = parseInt(tok, 10);
+          if (asNum === currQ && tokens.length > currQ) continue;
+          const norm = normalizeFlaskToken(tok, currQ);
+          if (norm) {
+            activeKeyMap[currQ] = norm;
+            currQ++;
+            count++;
+          }
+        }
       }
 
       renderKeyGrid();
+      const msg = document.getElementById('bulk-status-msg');
+      if (msg) {
+        msg.textContent = `Applied ${count} answers!`;
+        setTimeout(() => { msg.textContent = ''; }, 3500);
+      }
+    }
+
+    function handleFlaskCsvUpload(input) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById('bulk-key-input').value = e.target.result;
+          applyBulkKey();
+        };
+        reader.readAsText(input.files[0]);
+      }
+    }
+
+    function downloadFlaskCsvTemplate() {
+      const rows = ['Question,Type,Answer'];
+      for (let q = 1; q <= activeTotalQ; q++) {
+        const isInt = (q >= 21 && q <= 25) || (q >= 45 && q <= 50) || (q >= 70 && q <= 75);
+        rows.push(`${q},${isInt ? 'Numerical' : 'MCQ'},${activeKeyMap[q] || ''}`);
+      }
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `jee_answers_template_${activeTotalQ}q.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     async function saveAnswerKey() {

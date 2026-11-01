@@ -415,7 +415,7 @@ export default function TestAttemptPage({
         onSelectFilter={handleSelectFilter}
       />
 
-      {/* 3. Outer Canvas with padding on left, right, and bottom */}
+      {/* 3. Outer Canvas with padding on left, right, and bottom (Generous left padding reveals plain page background behind) */}
       <div
         className="outer-canvas-wrap"
         style={{
@@ -424,7 +424,7 @@ export default function TestAttemptPage({
           flexDirection: 'column',
           overflow: 'hidden',
           minHeight: 0,
-          padding: '10px 14px 14px 14px',
+          padding: '10px 16px 14px 64px',
           background: '#e9edf2',
         }}
       >
@@ -441,6 +441,8 @@ export default function TestAttemptPage({
             overflow: 'hidden',
             minHeight: 0,
             position: 'relative',
+            maxWidth: '1680px',
+            width: '100%',
           }}
         >
           {/* Left Column: Question Area, PDF Embed, Options, Bottomline, Action Buttons */}

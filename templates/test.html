@@ -114,11 +114,11 @@
     </div>
   </div>
 
-  <!-- 3. Outer Canvas with padding on left, right, and bottom -->
-  <div class="outer-canvas" style="flex: 1 1 0; display: flex; flex-direction: column; overflow: hidden; min-height: 0; padding: 12px 16px 16px 16px; background: #e9edf2;">
+  <!-- 3. Outer Canvas with padding on left, right, and bottom (Generous left padding so plain background of page shows behind) -->
+  <div class="outer-canvas" style="flex: 1 1 0; display: flex; flex-direction: column; overflow: hidden; min-height: 0; padding: 10px 16px 14px 64px; background: #e9edf2;">
     
     <!-- The Big Brighter Box (Container fitting Question, Palette, 4 Options, Bottomline & Action Buttons) -->
-    <div class="big-box" style="flex: 1 1 0; display: flex; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 4px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); overflow: hidden; min-height: 0; position: relative;">
+    <div class="big-box" style="flex: 1 1 0; display: flex; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 4px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); overflow: hidden; min-height: 0; position: relative; max-width: 1680px; width: 100%;">
       
       <!-- Left Column: Question Area, PDF Embed, Options, Bottomline, Action Buttons -->
       <div id="left-question-panel" style="flex: 1 1 68%; min-width: 0; background: #ffffff; display: flex; flex-direction: column; overflow-y: auto;">
@@ -159,10 +159,10 @@
             <div style="width: 26px; height: 26px; border: 2.5px solid #1e4273; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 6px;"></div>
             <span style="font-size: 12px; font-weight: 600;">Loading Question Paper PDF...</span>
           </div>
-          <!-- Canvas container for PDF.js -->
-          <div id="pdf-canvas-container" style="width: 100%; display: flex; flex-direction: column; align-items: center;"></div>
+          <!-- Canvas container for PDF.js (Centered and constrained so PDF viewer is not excessively wide) -->
+          <div id="pdf-canvas-container" style="width: 100%; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;"></div>
           <!-- Fallback iframe -->
-          <iframe id="pdf-fallback-iframe" style="display: none; width: 100%; height: 100%; min-height: 300px; border: none; background: white;" title="Question Paper"></iframe>
+          <iframe id="pdf-fallback-iframe" style="display: none; width: 100%; max-width: 860px; margin: 0 auto; height: 100%; min-height: 300px; border: none; background: white;" title="Question Paper"></iframe>
         </div>
 
         <!-- 4 Vertical Radio Options 1), 2), 3), 4) -->

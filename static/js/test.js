@@ -810,7 +810,7 @@
         pageWrapper.style.border = isDark ? '1px solid #334155' : '1px solid #e2e8f0';
         pageWrapper.style.backgroundColor = '#ffffff';
         pageWrapper.style.width = `${viewport.width}px`;
-        pageWrapper.style.maxWidth = '100%';
+        pageWrapper.style.maxWidth = '860px';
 
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width * pixelRatio;

@@ -140,6 +140,24 @@ html.dark .nta-exam-ui {
   background: #090d16 !important;
 }
 
+.outer-canvas-wrap {
+  padding: 10px 16px 14px 64px !important;
+}
+
+@media (min-width: 1280px) {
+  .outer-canvas-wrap {
+    padding-left: 76px !important;
+    padding-right: 20px !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  .outer-canvas-wrap {
+    padding-left: 96px !important;
+    padding-right: 24px !important;
+  }
+}
+
 html.dark .outer-canvas-wrap {
   background: #0a0f1d !important;
 }

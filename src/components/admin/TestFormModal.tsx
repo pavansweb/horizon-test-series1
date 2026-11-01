@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Test, SubjectConfig, MarkingScheme } from '@/lib/types';
 import { AnswerKeyEditor } from './AnswerKeyEditor';
 import { UploadIcon, CheckIcon } from '@/components/icons/Icons';
+import { parseUniversalAnswerKey } from '@/lib/answerKeyParser';
 
 interface TestFormModalProps {
   isOpen: boolean;
@@ -44,6 +45,8 @@ export function TestFormModal({
   const [activeTab, setActiveTab] = useState<'details' | 'subjects' | 'answers'>('details');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isScanningPdf, setIsScanningPdf] = useState<boolean>(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -132,6 +135,64 @@ export function TestFormModal({
   const totalQuestions = physicsCount + chemistryCount + mathCount;
   // Automatically calculate maximum marks based on question count & correct marking scheme
   const autoTotalMarks = totalQuestions * (Number(markingCorrect) || 4);
+
+  const handleScanPdfForAnswers = async () => {
+    if (!pdfPreviewUrl) {
+      setScanStatus('No PDF loaded to scan.');
+      return;
+    }
+    try {
+      setIsScanningPdf(true);
+      setScanStatus('Scanning PDF pages for answer key...');
+
+      // Dynamic load of PDF.js from CDN if not already on window
+      if (!window.pdfjsLib) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.onload = () => {
+            if (window.pdfjsLib) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              resolve();
+            } else reject(new Error('PDF.js failed to load'));
+          };
+          script.onerror = () => reject(new Error('Failed to load PDF.js script'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const doc = await window.pdfjsLib!.getDocument({ url: pdfPreviewUrl }).promise;
+      let combinedText = '';
+
+      // Check the final 3 pages first (where answer keys typically reside)
+      const startScan = Math.max(1, doc.numPages - 3);
+      for (let p = startScan; p <= doc.numPages; p++) {
+        const page = (await doc.getPage(p)) as unknown as {
+          getTextContent: () => Promise<{ items: Array<{ str?: string }> }>;
+        };
+        const textContent = await page.getTextContent();
+        const pageStrings = textContent.items
+          .map((item) => item?.str || '')
+          .join(' ');
+        combinedText += `\n ${pageStrings}`;
+      }
+
+      const parsed = parseUniversalAnswerKey(combinedText, totalQuestions, testToEdit?.integerQuestions);
+      if (parsed.filledCount >= 5) {
+        setAnswerKey((prev) => ({ ...prev, ...parsed.answerKey }));
+        setScanStatus(`Found and loaded ${parsed.filledCount} answers from PDF (${parsed.detectedFormat})!`);
+        setActiveTab('answers');
+      } else {
+        setScanStatus('No printed answer key detected in this PDF. Use Smart Paste or Speed-Tagger below.');
+      }
+    } catch (err) {
+      console.warn('PDF answer scan error:', err);
+      setScanStatus('Could not scan PDF text.');
+    } finally {
+      setIsScanningPdf(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -573,11 +634,37 @@ export function TestFormModal({
 
           {/* TAB 3: ANSWER KEY */}
           {activeTab === 'answers' && (
-            <AnswerKeyEditor
-              subjects={subjects}
-              answerKey={answerKey}
-              onChangeAnswerKey={(newKey) => setAnswerKey(newKey)}
-            />
+            <div className="space-y-3">
+              {pdfPreviewUrl && (
+                <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700">Question Paper PDF:</span>
+                    <span className="text-slate-500 truncate max-w-xs">{pdfFile?.name || testToEdit?.pdfFileName || 'PDF Attached'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleScanPdfForAnswers}
+                    disabled={isScanningPdf}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    🔍 {isScanningPdf ? 'Scanning PDF...' : 'Scan PDF for Answer Key'}
+                  </button>
+                </div>
+              )}
+
+              {scanStatus && (
+                <div className="p-2 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded text-xs font-semibold">
+                  {scanStatus}
+                </div>
+              )}
+
+              <AnswerKeyEditor
+                subjects={subjects}
+                answerKey={answerKey}
+                onChangeAnswerKey={(newKey) => setAnswerKey(newKey)}
+                integerQuestions={testToEdit?.integerQuestions}
+              />
+            </div>
           )}
 
           {/* Modal Footer Controls */}

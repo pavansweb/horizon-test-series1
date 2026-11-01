@@ -142,7 +142,7 @@ export function NtaPdfViewer({
           pageWrapper.style.boxShadow = '0 1px 3px rgba(0,0,0,0.18)';
           pageWrapper.style.backgroundColor = '#ffffff';
           pageWrapper.style.width = `${viewport.width}px`;
-          pageWrapper.style.maxWidth = '100%';
+          pageWrapper.style.maxWidth = '860px';
           pageWrapper.style.position = 'relative';
 
           const canvas = document.createElement('canvas');
@@ -397,13 +397,13 @@ export function NtaPdfViewer({
             src={fallbackUrl}
             className="w-full h-full border-none"
             title={`Question Paper - Question ${currentQuestionNumber}`}
-            style={{ minHeight: '220px', width: '100%', background: 'white' }}
+            style={{ minHeight: '220px', width: '100%', maxWidth: '860px', margin: '0 auto', display: 'block', background: 'white' }}
           />
         ) : (
           <div
             ref={pagesContainerRef}
             className="w-full flex flex-col items-center"
-            style={{ minHeight: '100%' }}
+            style={{ minHeight: '100%', maxWidth: '860px', margin: '0 auto' }}
           />
         )}
       </div>
