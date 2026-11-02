@@ -54,18 +54,10 @@ export default function StudentHomePage() {
       {/* Header */}
       <header className="bg-[#1e3a8a] dark:bg-slate-900 text-white border-b border-blue-900 dark:border-slate-800 shadow-xs select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-white text-[#1e3a8a] font-black flex items-center justify-center text-xs shadow-xs">
-              NTA
-            </div>
-            <div>
-              <h1 className="font-extrabold text-base sm:text-lg leading-tight tracking-tight">
-                JEE (Main) Mock Test Portal
-              </h1>
-              <p className="text-[11px] text-blue-200 dark:text-slate-400">
-                Computer Based Test (CBT) Simulation
-              </p>
-            </div>
+          <div className="flex items-center">
+            <h1 className="font-extrabold text-base sm:text-lg leading-tight tracking-tight">
+              Horizon-Test-series
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -137,10 +129,7 @@ export default function StudentHomePage() {
                   className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden"
                 >
                   <div className="p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
-                        Paper 1 (B.E. / B.Tech)
-                      </span>
+                    <div className="flex items-center justify-end">
                       <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         {test.duration} mins
                       </span>
@@ -200,7 +189,7 @@ export default function StudentHomePage() {
 
       {/* Footer */}
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 px-4 text-center text-xs text-slate-500 dark:text-slate-400 select-none">
-        <p>JEE (Main) Mock Test Portal • For practice and preparation</p>
+        <p>Horizon-Test-series</p>
       </footer>
     </div>
   );

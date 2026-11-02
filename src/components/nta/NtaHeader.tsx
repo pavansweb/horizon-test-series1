@@ -65,77 +65,21 @@ export function NtaHeader({
       }}
     >
       <div className="flex items-center justify-between">
-        {/* Left: Logo & Horizon Test Series Header */}
-        <div className="flex items-center gap-3">
-          {/* Horizon Academic Crest Emblem */}
-          <div
+        {/* Left: Horizon-Test-series Header */}
+        <div className="flex items-center">
+          <h1
             style={{
-              width: '44px',
-              height: '46px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
+              fontSize: '18px',
+              fontWeight: 800,
+              color: isDark ? '#60a5fa' : '#1e3a8a',
+              letterSpacing: '0.2px',
+              lineHeight: '1.2',
+              margin: 0,
+              fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
             }}
           >
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              {/* Outer Golden Wreath */}
-              <circle cx="50" cy="50" r="46" fill="none" stroke="#d4af37" strokeWidth="2.5" />
-              <circle cx="50" cy="50" r="41" fill="#fdfbf7" stroke="#1e3a68" strokeWidth="1.5" />
-              {/* Inner Shield */}
-              <path
-                d="M50 16 L76 26 C76 56 50 78 50 78 C50 78 24 56 24 26 Z"
-                fill="#1e3a68"
-                stroke="#d4af37"
-                strokeWidth="1.5"
-              />
-              {/* Horizon Sun & Rays */}
-              <path
-                d="M34 50 A16 16 0 0 1 66 50 Z"
-                fill="#f59e0b"
-              />
-              <line x1="50" y1="30" x2="50" y2="24" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-              <line x1="39" y1="34" x2="35" y2="30" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-              <line x1="61" y1="34" x2="65" y2="30" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-              {/* Open Book in Base */}
-              <path
-                d="M36 58 Q44 54 50 58 Q56 54 64 58 L64 68 Q56 64 50 68 Q44 64 36 68 Z"
-                fill="#ffffff"
-                stroke="#d4af37"
-                strokeWidth="1"
-              />
-            </svg>
-          </div>
-
-          <div>
-            <h1
-              style={{
-                fontSize: '20px',
-                fontWeight: 800,
-                color: isDark ? '#60a5fa' : '#244874',
-                letterSpacing: '0.8px',
-                lineHeight: '1.15',
-                margin: 0,
-                fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-                textTransform: 'uppercase',
-              }}
-            >
-              JEE (MAIN) EXAMINATION
-            </h1>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: isDark ? '#94a3b8' : '#476282',
-                letterSpacing: '0.4px',
-                marginTop: '2px',
-                textTransform: 'uppercase',
-                fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-              }}
-            >
-              COMPUTER BASED TEST (CBT) SIMULATION
-            </div>
-          </div>
+            Horizon-Test-series
+          </h1>
         </div>
 
         {/* Right: Theme Toggle, Candidate Photo, Name & Pill Timer */}

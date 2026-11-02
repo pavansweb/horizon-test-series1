@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'JEE (Main) Mock Test Portal • CBT Simulation',
-  description: 'Computer Based Test (CBT) Mock Examination Portal for JEE Main Aspirants',
+  title: 'Horizon-Test-series',
+  description: 'Horizon-Test-series CBT Mock Portal',
 };
 
 export default function RootLayout({

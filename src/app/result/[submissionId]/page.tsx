@@ -128,7 +128,7 @@ export default function ResultPage({
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             <span className="text-xs font-bold tracking-widest text-blue-200 dark:text-blue-300 uppercase">
-              JEE (Main) Examination Result Card
+              Horizon-Test-series • Result Card
             </span>
             <h1 className="text-xl sm:text-2xl font-black">{result.testTitle}</h1>
             <p className="text-xs text-blue-200 dark:text-slate-400">

@@ -258,17 +258,11 @@ export default function AdminDashboardPage() {
       {/* Top Header */}
       <header className="bg-[#1e3a8a] dark:bg-slate-900 text-white border-b border-blue-900 dark:border-slate-800 shadow-sm py-3 px-4 sm:px-6 transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-white dark:bg-blue-600 text-[#1e3a8a] dark:text-white font-black flex items-center justify-center text-sm shadow-xs">
-              NTA
-            </div>
+          <div className="flex items-center">
             <div>
               <h1 className="font-extrabold text-base sm:text-lg leading-tight text-white">
-                JEE (Main) CBT • Admin Portal
+                Horizon-Test-series • Admin Portal
               </h1>
-              <p className="text-[11px] text-blue-200 dark:text-slate-400">
-                Examination Management &amp; Analytics
-              </p>
             </div>
           </div>
 
