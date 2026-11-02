@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Test, SubjectConfig, TestQuestion, MarkingScheme } from '@/lib/types';
+import { Test, SubjectConfig, TestQuestion, MarkingScheme, isQuestionUnformatted } from '@/lib/types';
 import { MathText } from '@/components/MathText';
 import { UploadIcon, TrashIcon, EditIcon } from '@/components/icons/Icons';
 
@@ -56,6 +56,7 @@ export function TestUploadModal({
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showPublishConfirmModal, setShowPublishConfirmModal] = useState<boolean>(false);
 
   // Progressive extraction state
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string>('');
@@ -413,24 +414,45 @@ export function TestUploadModal({
     }
   };
 
-  // Re-extract remaining placeholders in sequential chunks
+  // Re-extract or format remaining placeholders in sequential chunks
   const handleExtractRemainingPlaceholders = async () => {
-    const pdfUrl = currentPdfUrl || testToEdit?.pdfUrl;
-    if (!pdfUrl) {
-      setError('No PDF available to extract remaining questions.');
-      return;
-    }
-
-    const placeholderQuestions = questions.filter(
-      (q) => !q.questionText || q.questionText.toLowerCase().includes('refer to')
-    );
-
+    const placeholderQuestions = questions.filter(isQuestionUnformatted);
     if (placeholderQuestions.length === 0) return;
+
+    const pdfUrl = currentPdfUrl || testToEdit?.pdfUrl;
 
     try {
       setStep('processing');
       setError(null);
       cancelExtractionRef.current = false;
+
+      // If no PDF is available, use the AI question formatter directly
+      if (!pdfUrl) {
+        setProcessingStatus(`Formatting ${placeholderQuestions.length} questions with AI...`);
+        for (let i = 0; i < placeholderQuestions.length; i++) {
+          if (cancelExtractionRef.current) break;
+          const pq = placeholderQuestions[i];
+          setProcessingStatus(`AI Formatting Q${pq.questionNumber}... (${i + 1} of ${placeholderQuestions.length})`);
+          try {
+            const res = await fetch('/api/admin/gemini/parse-paper', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'format-single-question',
+                question: pq,
+              }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.question) {
+              handleUpdateQuestion(pq.questionNumber, data.question);
+            }
+          } catch (e) {
+            console.warn(`Format Q${pq.questionNumber} error:`, e);
+          }
+        }
+        setStep('preview');
+        return;
+      }
 
       const missingQNums = new Set(placeholderQuestions.map((q) => q.questionNumber));
       const chunksToRun: Array<{ subject: SubjectConfig; start: number; end: number; chunkIndex: number }> = [];
@@ -492,7 +514,7 @@ export function TestUploadModal({
             setQuestions((prev) =>
               prev.map((q) => {
                 const found = cData.questions.find((x: TestQuestion) => x.questionNumber === q.questionNumber);
-                if (found && found.questionText && found.questionText.trim().length > 3) {
+                if (found && !isQuestionUnformatted(found)) {
                   return { ...q, ...found };
                 }
                 return q;
@@ -589,20 +611,12 @@ export function TestUploadModal({
   };
 
   // Step 4: Final Save & Publish
-  const handleFinalPublish = async () => {
-    if (!title.trim()) {
-      setError('Please provide a test title.');
-      return;
-    }
-
-    if (!isEditing && !pdfFile) {
-      setError('Please provide a question paper PDF.');
-      return;
-    }
-
+  const executeSaveTest = async (overrideStatus?: 'published' | 'draft') => {
     try {
       setIsSubmitting(true);
       setError(null);
+
+      const effectiveStatus = overrideStatus || status;
 
       const markingScheme: MarkingScheme = {
         correct: Number(markingCorrect) || 4,
@@ -631,7 +645,7 @@ export function TestUploadModal({
             questions: questions.length > 0 ? questions : undefined,
             markingScheme,
             answerKey,
-            status,
+            status: effectiveStatus,
           }),
         });
 
@@ -655,7 +669,7 @@ export function TestUploadModal({
         if (questions.length > 0) {
           formData.append('questions', JSON.stringify(questions));
         }
-        formData.append('status', status);
+        formData.append('status', effectiveStatus);
 
         const res = await fetch('/api/admin/tests', {
           method: 'POST',
@@ -676,6 +690,29 @@ export function TestUploadModal({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFinalPublish = async () => {
+    if (!title.trim()) {
+      setError('Please provide a test title.');
+      return;
+    }
+
+    if (!isEditing && !pdfFile) {
+      setError('Please provide a question paper PDF.');
+      return;
+    }
+
+    // Check if any questions are unformatted
+    const unformatted = questions.filter(isQuestionUnformatted);
+
+    // If publishing paper with unformatted questions, prompt the admin
+    if (status === 'published' && unformatted.length > 0) {
+      setShowPublishConfirmModal(true);
+      return;
+    }
+
+    await executeSaveTest();
   };
 
   // Single question AI auto-formatter
@@ -703,9 +740,14 @@ export function TestUploadModal({
     }
   };
 
+  const unformattedQuestions = questions.filter(isQuestionUnformatted);
+  const unformattedCount = unformattedQuestions.length;
+
   // Filtered questions for preview (subject filter + search query)
   const filteredQuestions = questions.filter((q) => {
-    if (activeSubjectFilter !== 'all' && q.subjectId.toLowerCase() !== activeSubjectFilter.toLowerCase()) {
+    if (activeSubjectFilter === 'unformatted') {
+      if (!isQuestionUnformatted(q)) return false;
+    } else if (activeSubjectFilter !== 'all' && q.subjectId.toLowerCase() !== activeSubjectFilter.toLowerCase()) {
       return false;
     }
     if (searchQuery.trim()) {
@@ -967,7 +1009,7 @@ export function TestUploadModal({
             <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-black text-sm text-slate-900 dark:text-slate-100">
-                  {questions.length} Questions Extracted
+                  {questions.length} Questions
                 </span>
                 <span className="text-slate-400">•</span>
                 <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded font-bold">
@@ -982,22 +1024,36 @@ export function TestUploadModal({
                 <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded font-bold">
                   Keys: {Object.keys(answerKey).length}/{questions.length}
                 </span>
+                {unformattedCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubjectFilter('unformatted')}
+                    className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 rounded font-extrabold border border-amber-300 dark:border-amber-800 hover:bg-amber-200 cursor-pointer flex items-center gap-1"
+                    title="Click to filter and view all unformatted questions"
+                  >
+                    <span>⚠️ {unformattedCount} Unformatted</span>
+                  </button>
+                ) : (
+                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 rounded font-bold border border-emerald-300 dark:border-emerald-800">
+                    ✨ 100% Formatted
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
-                {questions.some((q) => !q.questionText || q.questionText.toLowerCase().includes('refer to')) && (
+                {unformattedCount > 0 && (
                   <button
                     type="button"
                     onClick={handleExtractRemainingPlaceholders}
-                    className="px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all"
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5 transition-all"
                   >
-                    <span>✨ Auto-Extract Remaining Questions</span>
+                    <span>✨ Format Remaining ({unformattedCount}) with AI</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={handleAddQuestion}
-                  className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-bold text-xs cursor-pointer"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-bold text-xs cursor-pointer"
                 >
                   ➕ Add Question
                 </button>
@@ -1007,26 +1063,36 @@ export function TestUploadModal({
             {/* Subject Filter Pills & Quick Search */}
             <div className="px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
               <div className="flex items-center gap-1.5 overflow-x-auto">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1">Filter Subject:</span>
-                {['all', 'physics', 'chemistry', 'mathematics'].map((subId) => {
-                  const count = subId === 'all'
-                    ? questions.length
-                    : questions.filter((q) => q.subjectId.toLowerCase() === subId).length;
-                  const label = subId === 'all' ? 'All Questions' : subId.charAt(0).toUpperCase() + subId.slice(1);
-                  const isActive = activeSubjectFilter === subId;
+                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1">Filter:</span>
+                {[
+                  { id: 'all', label: 'All Questions', count: questions.length },
+                  { id: 'physics', label: 'Physics', count: questions.filter((q) => q.subjectId.toLowerCase() === 'physics').length },
+                  { id: 'chemistry', label: 'Chemistry', count: questions.filter((q) => q.subjectId.toLowerCase() === 'chemistry').length },
+                  { id: 'mathematics', label: 'Mathematics', count: questions.filter((q) => q.subjectId.toLowerCase() === 'mathematics').length },
+                  ...(unformattedCount > 0
+                    ? [{ id: 'unformatted', label: '⚠️ Unformatted', count: unformattedCount }]
+                    : []),
+                ].map((item) => {
+                  const isActive = activeSubjectFilter === item.id;
+                  const isUnformattedTab = item.id === 'unformatted';
 
                   return (
                     <button
-                      key={subId}
+                      key={item.id}
                       type="button"
-                      onClick={() => setActiveSubjectFilter(subId)}
-                      className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                      onClick={() => setActiveSubjectFilter(item.id)}
+                      className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         isActive
-                          ? 'bg-blue-700 text-white shadow-xs'
+                          ? isUnformattedTab
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-blue-700 text-white shadow-xs'
+                          : isUnformattedTab
+                          ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 hover:bg-amber-200 border border-amber-300 dark:border-amber-800'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
-                      {label} ({count})
+                      <span>{item.label}</span>
+                      <span className="text-[10px] opacity-80">({item.count})</span>
                     </button>
                   );
                 })}
@@ -1053,6 +1119,40 @@ export function TestUploadModal({
               </div>
             </div>
 
+            {/* Unformatted Alert Banner in Question View */}
+            {unformattedCount > 0 && activeSubjectFilter !== 'unformatted' && (
+              <div className="mx-5 mt-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shrink-0">
+                <div className="space-y-0.5">
+                  <div className="font-extrabold text-amber-900 dark:text-amber-200 flex flex-wrap items-center gap-1.5">
+                    <span>⚠️ {unformattedCount} Unformatted Questions Detected</span>
+                    <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300">
+                      ({unformattedQuestions.slice(0, 8).map((q) => `Q${q.questionNumber}`).join(', ')}
+                      {unformattedCount > 8 ? ` +${unformattedCount - 8} more` : ''})
+                    </span>
+                  </div>
+                  <p className="text-amber-700 dark:text-amber-300/80">
+                    These questions currently contain placeholder statements. You can auto-extract them from the PDF or inspect them.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubjectFilter('unformatted')}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-bold rounded-lg hover:bg-amber-50 cursor-pointer"
+                  >
+                    View ({unformattedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExtractRemainingPlaceholders}
+                    className="px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold rounded-lg hover:from-purple-700 shadow-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <span>✨ Format All with AI</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Questions List */}
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
               {filteredQuestions.length === 0 ? (
@@ -1072,7 +1172,7 @@ export function TestUploadModal({
                     >
                       {/* Question Top Row: Q Number, Subject, Type, Key, Edit, Delete */}
                       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-black text-sm text-blue-900 dark:text-blue-400">
                             Question {q.questionNumber}
                           </span>
@@ -1082,6 +1182,15 @@ export function TestUploadModal({
                           <span className="text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded">
                             {isNumerical ? 'Section B (Numerical)' : 'Section A (MCQ)'}
                           </span>
+                          {isQuestionUnformatted(q) ? (
+                            <span className="text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                              <span>⚠️ Unformatted</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold uppercase bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                              ✓ Formatted
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -1359,6 +1468,90 @@ export function TestUploadModal({
                   ) : (
                     <span>{isEditing ? 'Save Changes' : 'Publish Test Paper'}</span>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Unformatted Questions Pre-Publish Warning Dialog */}
+        {showPublishConfirmModal && (
+          <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 space-y-5 border border-amber-300 dark:border-amber-700/60 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 text-xl font-bold">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100">
+                    Unformatted Questions in Paper
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    You are publishing this paper, but <span className="font-bold text-amber-600 dark:text-amber-400">{unformattedCount} of {questions.length} questions</span> are still unformatted placeholders.
+                  </p>
+                </div>
+              </div>
+
+              {/* Breakdown list of unformatted question numbers */}
+              <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl p-3.5 space-y-2">
+                <div className="text-[11px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Questions needing formatting:</span>
+                  <span>{unformattedCount} Total</span>
+                </div>
+                <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto p-1">
+                  {unformattedQuestions.map((q) => (
+                    <button
+                      key={q.questionNumber}
+                      type="button"
+                      onClick={() => {
+                        setShowPublishConfirmModal(false);
+                        setActiveSubjectFilter('unformatted');
+                        setEditingQuestionNumber(q.questionNumber);
+                      }}
+                      className="px-2 py-0.5 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded text-xs font-mono font-bold hover:bg-amber-100 dark:hover:bg-amber-900/50 cursor-pointer"
+                      title={`Question ${q.questionNumber} (${q.subjectId}) - Click to inspect`}
+                    >
+                      Q{q.questionNumber}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 italic pt-1">
+                  Students taking CBT will see generic placeholders with original PDF reference for these questions.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPublishConfirmModal(false);
+                    setActiveSubjectFilter('unformatted');
+                  }}
+                  className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-center"
+                >
+                  Review Questions
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPublishConfirmModal(false);
+                    executeSaveTest('published');
+                  }}
+                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold cursor-pointer text-center"
+                >
+                  Publish Anyway
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPublishConfirmModal(false);
+                    handleExtractRemainingPlaceholders();
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg text-xs font-extrabold shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>✨ Format Remaining with AI</span>
                 </button>
               </div>
             </div>

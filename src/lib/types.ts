@@ -91,6 +91,33 @@ export function isIntegerQuestion(qNum: number, integerQuestions?: number[]): bo
   );
 }
 
+/**
+ * Checks whether a question is an unformatted placeholder or missing real content.
+ */
+export function isQuestionUnformatted(q?: Partial<TestQuestion> | null): boolean {
+  if (!q) return true;
+  const text = (q.questionText || '').trim();
+  if (!text || text.length <= 3) return true;
+  const lower = text.toLowerCase();
+  if (
+    lower.includes('refer to') ||
+    lower.includes('refer question paper') ||
+    lower.includes('refer pdf') ||
+    lower.includes('question paper pdf')
+  ) {
+    return true;
+  }
+  if (/^question\s+\d+(\s+statement)?$/i.test(text)) {
+    return true;
+  }
+  if (q.type === 'mcq') {
+    if (!q.options || q.options.length < 2) return true;
+    const isPlaceholderOptions = q.options.every((o) => /^option\s+[a-d]$/i.test((o.text || '').trim()));
+    if (isPlaceholderOptions) return true;
+  }
+  return false;
+}
+
 export type QuestionStatus = 
   | 'not_visited'
   | 'not_answered'
