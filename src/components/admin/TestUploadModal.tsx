@@ -51,6 +51,8 @@ export function TestUploadModal({
   const [editingQuestionNumber, setEditingQuestionNumber] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [formattingQNum, setFormattingQNum] = useState<number | null>(null);
+  const [attachingImageQNum, setAttachingImageQNum] = useState<number | null>(null);
+  const [customImageUrl, setCustomImageUrl] = useState<string>('');
 
   // Status & error messages
   const [processingStatus, setProcessingStatus] = useState<string>('');
@@ -740,6 +742,92 @@ export function TestUploadModal({
     }
   };
 
+  // Strip Hindi Devanagari text locally from questions
+  const stripHindiLocal = (text: string) => {
+    if (!text) return '';
+    const lines = text.split('\n');
+    const filtered = lines.filter((l) => {
+      const dev = (l.match(/[\u0900-\u097F]/g) || []).length;
+      const lat = (l.match(/[a-zA-Z]/g) || []).length;
+      return !(dev > 0 && dev >= lat);
+    });
+    return filtered
+      .join('\n')
+      .replace(/[\u0900-\u097F\u0964\u0965]+/g, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
+  const handleCleanHindiQuestion = (qNum: number) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.questionNumber !== qNum) return q;
+        return {
+          ...q,
+          questionText: stripHindiLocal(q.questionText),
+          options: q.options?.map((opt) => ({
+            ...opt,
+            text: stripHindiLocal(opt.text),
+          })),
+        };
+      })
+    );
+  };
+
+  const handleCleanHindiAll = () => {
+    setQuestions((prev) =>
+      prev.map((q) => ({
+        ...q,
+        questionText: stripHindiLocal(q.questionText),
+        options: q.options?.map((opt) => ({
+          ...opt,
+          text: stripHindiLocal(opt.text),
+        })),
+      }))
+    );
+  };
+
+  // Diagram image handlers
+  const handleImageFileUpload = (qNum: number, file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      if (base64) {
+        handleUpdateQuestion(qNum, { imageUrl: base64, hasDiagram: true });
+        setAttachingImageQNum(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePasteImageFromClipboard = async (qNum: number) => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const base64 = e.target?.result as string;
+            if (base64) {
+              handleUpdateQuestion(qNum, { imageUrl: base64, hasDiagram: true });
+              setAttachingImageQNum(null);
+            }
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+      alert('No image found on clipboard! Please copy an image or take a screenshot first (PrintScreen or Snipping Tool).');
+    } catch (err) {
+      console.warn('Clipboard read error:', err);
+      alert('Clipboard access denied or unsupported in this browser. Please use the file upload or image URL.');
+    }
+  };
+
   const unformattedQuestions = questions.filter(isQuestionUnformatted);
   const unformattedCount = unformattedQuestions.length;
 
@@ -1098,24 +1186,36 @@ export function TestUploadModal({
                 })}
               </div>
 
-              {/* Quick Search */}
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Search Q# or formula..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
-                  >
-                    ✕
-                  </button>
-                )}
+              {/* Quick Actions & Search */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCleanHindiAll}
+                  className="px-2.5 py-1 text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900 cursor-pointer flex items-center gap-1 transition-colors"
+                  title="Strips any residual Hindi Devanagari text across all questions in the paper"
+                >
+                  <span>🧹</span>
+                  <span>Strip Hindi (All)</span>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Search Q# or formula..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1193,7 +1293,7 @@ export function TestUploadModal({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                             Key: {q.correctAnswer ? `(${q.correctAnswer})` : 'Not Set'}
                           </span>
@@ -1221,6 +1321,55 @@ export function TestUploadModal({
                             </button>
                           )}
 
+                          {/* AI Fix LaTeX */}
+                          <button
+                            type="button"
+                            onClick={() => handleFormatSingleQuestionWithAi(q.questionNumber)}
+                            disabled={formattingQNum === q.questionNumber}
+                            className="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 cursor-pointer disabled:opacity-40 flex items-center gap-1"
+                            title="Format math formulas and equations to standard LaTeX KaTeX using Gemini"
+                          >
+                            {formattingQNum === q.questionNumber ? (
+                              <>
+                                <span className="w-2.5 h-2.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin inline-block" />
+                                <span>Formatting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>✨</span>
+                                <span>Fix LaTeX</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Clean / Strip Hindi */}
+                          <button
+                            type="button"
+                            onClick={() => handleCleanHindiQuestion(q.questionNumber)}
+                            className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900 cursor-pointer flex items-center gap-1"
+                            title="Instantly remove any residual Hindi Devanagari script from this question"
+                          >
+                            <span>🧹</span>
+                            <span>Strip Hindi</span>
+                          </button>
+
+                          {/* Add / Edit Diagram */}
+                          <button
+                            type="button"
+                            onClick={() => setAttachingImageQNum(attachingImageQNum === q.questionNumber ? null : q.questionNumber)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold border cursor-pointer flex items-center gap-1 transition-all ${
+                              q.imageUrl
+                                ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                : q.hasDiagram
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 animate-pulse'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                            title={q.imageUrl ? 'Edit or replace diagram image' : 'Attach diagram or circuit image'}
+                          >
+                            <span>🖼️</span>
+                            <span>{q.imageUrl ? 'Edit Diagram' : q.hasDiagram ? 'Needs Diagram' : 'Add Diagram'}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() =>
@@ -1243,6 +1392,97 @@ export function TestUploadModal({
                         </div>
                       </div>
 
+                      {/* Inline Diagram Attachment Tray */}
+                      {attachingImageQNum === q.questionNumber && (
+                        <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg space-y-2.5 animate-in fade-in text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                              <span>🖼️ Attach Diagram / Circuit Image for Q{q.questionNumber}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setAttachingImageQNum(null)}
+                              className="text-slate-400 hover:text-slate-600 font-bold"
+                            >
+                              ✕ Close
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {/* 1. Upload File */}
+                            <label className="p-2.5 bg-white dark:bg-slate-900 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30">
+                              <span className="text-base">📁</span>
+                              <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">Upload Image File</span>
+                              <span className="text-[10px] text-slate-500">PNG, JPG, WebP</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleImageFileUpload(q.questionNumber, f);
+                                }}
+                              />
+                            </label>
+
+                            {/* 2. Paste Clipboard */}
+                            <button
+                              type="button"
+                              onClick={() => handlePasteImageFromClipboard(q.questionNumber)}
+                              className="p-2.5 bg-white dark:bg-slate-900 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30"
+                            >
+                              <span className="text-base">📋</span>
+                              <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">Paste from Clipboard</span>
+                              <span className="text-[10px] text-slate-500">Screenshot / Snipping Tool</span>
+                            </button>
+
+                            {/* 3. Image URL */}
+                            <div className="p-2.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-lg flex flex-col justify-between gap-1.5">
+                              <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">Image URL</span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="url"
+                                  placeholder="https://... image.png"
+                                  value={customImageUrl}
+                                  onChange={(e) => setCustomImageUrl(e.target.value)}
+                                  className="flex-1 p-1 text-[11px] border border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (customImageUrl.trim()) {
+                                      handleUpdateQuestion(q.questionNumber, { imageUrl: customImageUrl.trim(), hasDiagram: true });
+                                      setCustomImageUrl('');
+                                      setAttachingImageQNum(null);
+                                    }
+                                  }}
+                                  disabled={!customImageUrl.trim()}
+                                  className="px-2 py-1 bg-indigo-600 text-white font-bold text-[10px] rounded hover:bg-indigo-700 disabled:opacity-40"
+                                >
+                                  Apply
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {q.imageUrl && (
+                            <div className="flex items-center justify-between pt-1 border-t border-indigo-100 dark:border-indigo-900 text-[11px]">
+                              <span className="text-slate-600 dark:text-slate-300 font-semibold">Current image attached</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateQuestion(q.questionNumber, { imageUrl: undefined, hasDiagram: false });
+                                  setAttachingImageQNum(null);
+                                }}
+                                className="text-red-600 hover:text-red-700 font-bold"
+                              >
+                                Remove Image
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Question Statement Preview or Editor */}
                       {isEditingThis ? (
                         <div className="space-y-3 pt-1">
@@ -1258,6 +1498,64 @@ export function TestUploadModal({
                               }
                               className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans leading-relaxed"
                             />
+                          </div>
+
+                          {/* Diagram Controls in Edit Mode */}
+                          <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <span>🖼️ Question Diagram / Image:</span>
+                                <span className="text-[10px] font-normal text-slate-500">(Optional - for circuits, graphs, apparatus)</span>
+                              </label>
+                              {q.imageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateQuestion(q.questionNumber, { imageUrl: undefined, hasDiagram: false })}
+                                  className="text-[10px] text-red-600 hover:text-red-700 font-bold cursor-pointer"
+                                >
+                                  Remove Diagram
+                                </button>
+                              )}
+                            </div>
+
+                            {q.imageUrl ? (
+                              <div className="relative inline-block max-w-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
+                                <img src={q.imageUrl} alt="Diagram preview" className="max-h-40 object-contain rounded" />
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <label className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                                  <span>📁 Upload File</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleImageFileUpload(q.questionNumber, f);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePasteImageFromClipboard(q.questionNumber)}
+                                  className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer flex items-center gap-1"
+                                >
+                                  <span>📋 Paste Clipboard</span>
+                                </button>
+                                <input
+                                  type="url"
+                                  placeholder="Or paste image URL..."
+                                  defaultValue={q.imageUrl || ''}
+                                  onBlur={(e) => {
+                                    if (e.target.value.trim()) {
+                                      handleUpdateQuestion(q.questionNumber, { imageUrl: e.target.value.trim(), hasDiagram: true });
+                                    }
+                                  }}
+                                  className="flex-1 min-w-[140px] p-1 text-xs border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                />
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
@@ -1375,6 +1673,39 @@ export function TestUploadModal({
                           <div className="text-slate-900 dark:text-slate-100 text-xs sm:text-sm leading-relaxed">
                             <MathText content={q.questionText} />
                           </div>
+
+                          {/* Attached Diagram Preview in View Mode */}
+                          {q.imageUrl && (
+                            <div className="relative inline-block max-w-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 my-1.5 shadow-xs group">
+                              <img
+                                src={q.imageUrl}
+                                alt={`Diagram for Question ${q.questionNumber}`}
+                                className="max-h-52 w-auto rounded object-contain"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestion(q.questionNumber, { imageUrl: undefined, hasDiagram: false })}
+                                className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full text-xs shadow cursor-pointer opacity-80 group-hover:opacity-100 transition-opacity"
+                                title="Remove diagram image"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Warning Banner if Diagram is Referenced in PDF but Missing */}
+                          {q.hasDiagram && !q.imageUrl && (
+                            <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-md text-[11px] text-amber-800 dark:text-amber-300 my-1.5">
+                              <span>🖼️ Diagram referenced in question statement (circuit, graph, or figure).</span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachingImageQNum(q.questionNumber)}
+                                className="underline font-bold hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer ml-2"
+                              >
+                                Attach Diagram
+                              </button>
+                            </div>
+                          )}
 
                           {/* Options grid */}
                           {!isNumerical && q.options && q.options.length > 0 && (
