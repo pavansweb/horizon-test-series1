@@ -168,6 +168,17 @@ export function NtaQuestionDisplay({
               content={question.questionText || `Question ${currentQuestionNumber}`}
             />
           </div>
+
+          {/* Diagram / Image if attached */}
+          {question.imageUrl && (
+            <div className="my-3 flex justify-center bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+              <img
+                src={question.imageUrl}
+                alt={`Question ${currentQuestionNumber} diagram`}
+                className="max-h-72 max-w-full object-contain rounded shadow-xs"
+              />
+            </div>
+          )}
         </div>
       </div>
 

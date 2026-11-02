@@ -6,6 +6,8 @@ export interface SubjectConfig {
   startQuestion: number;
   endQuestion: number;
   totalQuestions: number;
+  startPage?: number;
+  endPage?: number;
 }
 
 export interface MarkingScheme {
@@ -27,6 +29,8 @@ export interface TestQuestion {
   options?: QuestionOption[];
   correctAnswer: string;       // 'A', 'B', 'C', 'D' or numerical string e.g. '15'
   solution?: string;          // Step-by-step solution / explanation
+  imageUrl?: string;          // Diagram, circuit, reaction, or graph image (URL or data URL)
+  hasDiagram?: boolean;       // True if question references an image/diagram/figure
   marks?: number;             // Defaults to test markingScheme.correct (e.g. 4)
   negativeMarks?: number;     // Defaults to test markingScheme.incorrect (e.g. -1)
 }
@@ -38,6 +42,8 @@ export interface PublicQuestion {
   type: 'mcq' | 'numerical';
   questionText: string;
   options?: QuestionOption[];
+  imageUrl?: string;          // Diagram, circuit, reaction, or graph image (URL or data URL)
+  hasDiagram?: boolean;
   marks?: number;
   negativeMarks?: number;
 }
@@ -168,6 +174,7 @@ export interface QuestionReviewItem {
   questionText?: string;
   options?: QuestionOption[];
   solution?: string;
+  imageUrl?: string;
   type?: 'mcq' | 'numerical';
 }
 

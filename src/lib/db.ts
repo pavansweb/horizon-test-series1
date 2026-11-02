@@ -272,6 +272,8 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
     type: q.type,
     questionText: q.questionText,
     options: q.options,
+    imageUrl: q.imageUrl,
+    hasDiagram: q.hasDiagram,
     marks: q.marks,
     negativeMarks: q.negativeMarks,
   }));

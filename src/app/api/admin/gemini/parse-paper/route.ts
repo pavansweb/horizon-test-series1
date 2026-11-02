@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAuthenticatedAdmin } from '@/lib/auth';
 import { SubjectConfig, TestQuestion } from '@/lib/types';
 import { savePdf } from '@/lib/storage';
+import { PDFDocument } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -12,12 +13,15 @@ export const maxDuration = 60; // Up to 60 seconds where supported
 interface ParsedExamData {
   title?: string;
   durationMinutes?: number;
+  totalPages?: number;
   subjects?: Array<{
     id?: string;
     name?: string;
     startQuestion?: number;
     endQuestion?: number;
     totalQuestions?: number;
+    startPage?: number;
+    endPage?: number;
   }>;
   integerQuestions?: number[];
   answerKey?: Record<string, string>;
@@ -34,6 +38,75 @@ const GEMINI_MODELS = [
   'gemini-flash-latest',
   'gemini-3.8-flash',
 ];
+
+/**
+ * Slices only the relevant page range from a full PDF using pdf-lib.
+ * Reduces 5MB PDFs to 100-200KB, eliminating timeouts and focusing Gemini's vision.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function getSlicedPdfForChunk(
+  fullPdfBase64: string,
+  subject?: SubjectConfig,
+  startQ?: number,
+  endQ?: number
+): Promise<string> {
+  if (!fullPdfBase64) return '';
+  try {
+    const srcDoc = await PDFDocument.load(Buffer.from(fullPdfBase64, 'base64'), {
+      ignoreEncryption: true,
+    });
+    const totalPages = srcDoc.getPageCount();
+
+    if (totalPages <= 3) {
+      return fullPdfBase64;
+    }
+
+    let startPage = 1;
+    let endPage = totalPages;
+
+    if (subject && subject.startPage && subject.endPage && typeof startQ === 'number' && typeof endQ === 'number') {
+      const totalSubjectQ = Math.max(1, subject.endQuestion - subject.startQuestion + 1);
+      const totalSubjectP = Math.max(1, subject.endPage - subject.startPage + 1);
+      const startRatio = (startQ - subject.startQuestion) / totalSubjectQ;
+      const endRatio = (endQ - subject.startQuestion + 1) / totalSubjectQ;
+
+      // 1-page safety padding on each side
+      startPage = Math.max(subject.startPage, Math.floor(subject.startPage + startRatio * totalSubjectP) - 1);
+      endPage = Math.min(subject.endPage, Math.ceil(subject.startPage + endRatio * totalSubjectP) + 1);
+    } else if (typeof startQ === 'number' && typeof endQ === 'number') {
+      const approxTotal = 75;
+      const startRatio = Math.max(0, (startQ - 1) / approxTotal);
+      const endRatio = Math.min(1, endQ / approxTotal);
+
+      startPage = Math.max(1, Math.floor(startRatio * totalPages));
+      endPage = Math.min(totalPages, Math.ceil(endRatio * totalPages) + 2);
+    }
+
+    startPage = Math.max(1, Math.min(startPage, totalPages));
+    endPage = Math.max(startPage, Math.min(endPage, totalPages));
+
+    if (endPage - startPage + 1 >= totalPages - 1) {
+      return fullPdfBase64;
+    }
+
+    const newDoc = await PDFDocument.create();
+    const pageIndices: number[] = [];
+    for (let i = startPage - 1; i <= endPage - 1; i++) {
+      pageIndices.push(i);
+    }
+
+    const copiedPages = await newDoc.copyPages(srcDoc, pageIndices);
+    copiedPages.forEach((p) => newDoc.addPage(p));
+
+    const newBytes = await newDoc.save();
+    const sliced = Buffer.from(newBytes).toString('base64');
+    console.log(`[PDF Slice] Sliced Pages ${startPage}–${endPage} of ${totalPages} for questions ${startQ}–${endQ} (${(fullPdfBase64.length / 1024).toFixed(0)}KB -> ${(sliced.length / 1024).toFixed(0)}KB)`);
+    return sliced;
+  } catch (err) {
+    console.warn('[PDF Slice] Slicing failed, using full PDF fallback:', err);
+    return fullPdfBase64;
+  }
+}
 
 /**
  * Strips any Devanagari (Hindi) script characters and full Hindi paragraphs.
@@ -222,17 +295,21 @@ CRITICAL INSTRUCTIONS FOR BILINGUAL & UNSTRUCTURED PAPERS:
    - Section B: Numerical/Integer value questions (no options).
 4. Answer Key: Extract the complete answer key for every question (1 to 75 or 90). Search the final pages for the Answer Key / Solutions table. Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
 5. Identify numerical/integer questions (e.g. Q21-25, Q46-50, Q71-75).
-6. Return a STRICTLY VALID JSON object with this exact schema:
+6. Page numbers: Detect startPage and endPage for each subject section in the PDF document.
+7. Return a STRICTLY VALID JSON object with this exact schema:
 {
   "title": string,
   "durationMinutes": number,
+  "totalPages": number,
   "subjects": [
     {
       "id": "physics" | "chemistry" | "mathematics",
       "name": "Physics" | "Chemistry" | "Mathematics",
       "startQuestion": number,
       "endQuestion": number,
-      "totalQuestions": number
+      "totalQuestions": number,
+      "startPage": number,
+      "endPage": number
     }
   ],
   "integerQuestions": number[],
@@ -282,6 +359,8 @@ CRITICAL INSTRUCTIONS FOR BILINGUAL & UNSTRUCTURED PAPERS:
             startQuestion: Number(s.startQuestion) || 1,
             endQuestion: Number(s.endQuestion) || 25,
             totalQuestions: Number(s.totalQuestions) || 25,
+            startPage: s.startPage ? Number(s.startPage) : undefined,
+            endPage: s.endPage ? Number(s.endPage) : undefined,
           }))
         : [
             { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
@@ -367,6 +446,9 @@ async function extractQuestionChunk(
   endQ: number,
   chunkIndex: number
 ): Promise<TestQuestion[]> {
+  // Page-slicing with pdf-lib: Slice only the 2-4 relevant pages to avoid timeouts/503s!
+  const targetPdfBase64 = await getSlicedPdfForChunk(pdfBase64, subject, startQ, endQ);
+
   const prompt = `You are an expert exam analyzer for JEE Main examination papers.
 Analyze this JEE question paper PDF. Extract ALL questions from Question ${startQ} to Question ${endQ} (${subject.name}).
 
@@ -382,7 +464,41 @@ CRITICAL REQUIREMENTS FOR BILINGUAL & UNSTRUCTURED PAPERS:
 4. Numerical/Integer questions must have empty options [].
 5. LATEX MATH & FORMULAS: Convert all math, units, and chemistry formulas to standard KaTeX LaTeX ($...$).
    - Examples: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$, $\\text{m/s}^2$, $10^{-8}\\text{ T}$, $\\vec{A}$, $\\mathrm{H_2SO_4}$.
-6. Keep solution empty "" to preserve tokens and response speed.
+6. DIAGRAM / FIGURE DETECTION:
+   - If a question references a diagram, circuit, graph, apparatus, or chemical structure (e.g. "in the figure shown", "given graph", "as shown below", "refer to diagram"), set "hasDiagram": true. Otherwise set false.
+7. Keep solution empty "" to preserve tokens and response speed.
+
+FEW-SHOT EXAMPLES:
+Example 1 (Bilingual MCQ with Math & Diagram Reference):
+Input: "प्र. 4. चित्र में दिखाए अनुसार एक संधारित्र... Q. 4. A capacitor of capacitance $C = 10\\,\\mu\\text{F}$ is connected in the circuit shown in the figure. Find the charge on the capacitor. (A) $20\\,\\mu\\text{C}$ (B) $40\\,\\mu\\text{C}$ (C) $60\\,\\mu\\text{C}$ (D) $80\\,\\mu\\text{C}$"
+Output JSON:
+{
+  "questionNumber": 4,
+  "subjectId": "physics",
+  "type": "mcq",
+  "questionText": "A capacitor of capacitance $C = 10\\,\\mu\\text{F}$ is connected in the circuit shown in the figure. Find the charge on the capacitor.",
+  "options": [
+    { "id": "A", "text": "$20\\,\\mu\\text{C}$" },
+    { "id": "B", "text": "$40\\,\\mu\\text{C}$" },
+    { "id": "C", "text": "$60\\,\\mu\\text{C}$" },
+    { "id": "D", "text": "$80\\,\\mu\\text{C}$" }
+  ],
+  "correctAnswer": "B",
+  "hasDiagram": true
+}
+
+Example 2 (Numerical / Section B):
+Input: "Q. 22. An ideal gas undergoes an adiabatic expansion where $P V^{5/3} = \\text{constant}$. If initial temperature is $300\\,\\text{K}$ and volume doubles, the final temperature is $T_f$. The value of $T_f$ rounded to nearest integer is:"
+Output JSON:
+{
+  "questionNumber": 22,
+  "subjectId": "physics",
+  "type": "numerical",
+  "questionText": "An ideal gas undergoes an adiabatic expansion where $P V^{5/3} = \\text{constant}$. If initial temperature is $300\\,\\text{K}$ and volume doubles, the final temperature is $T_f$. The value of $T_f$ rounded to nearest integer is:",
+  "options": [],
+  "correctAnswer": "189",
+  "hasDiagram": false
+}
 
 Return STRICTLY VALID JSON:
 {
@@ -398,7 +514,8 @@ Return STRICTLY VALID JSON:
         { "id": "C", "text": string },
         { "id": "D", "text": string }
       ],
-      "correctAnswer": string
+      "correctAnswer": string,
+      "hasDiagram": boolean
     }
   ]
 }`;
@@ -408,7 +525,7 @@ Return STRICTLY VALID JSON:
 
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 25000, 2);
+        const res = await callGemini(key, model, prompt, targetPdfBase64, 25000, 2);
         if (res) {
           const parsed = JSON.parse(res);
           if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
@@ -433,6 +550,8 @@ async function extractSingleQuestionFromPdf(
   questionNumber: number,
   subjectId: string
 ): Promise<Partial<TestQuestion> | null> {
+  const targetPdfBase64 = await getSlicedPdfForChunk(pdfBase64, undefined, questionNumber, questionNumber);
+
   const prompt = `You are an expert exam analyzer for JEE Main examination papers.
 Analyze this JEE question paper PDF. Extract ONLY Question ${questionNumber}.
 
@@ -443,6 +562,7 @@ CRITICAL REQUIREMENTS:
 4. If numerical/integer, options must be empty [].
 5. LATEX FORMULAS: Convert all math, units, and chemistry formulas to standard LaTeX ($...$).
    - Examples: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$, $\\text{m/s}^2$, $10^{-8}\\text{ T}$, $\\vec{A}$, $\\mathrm{H_2SO_4}$.
+6. DIAGRAM DETECTION: Set "hasDiagram": true if the question references an image, diagram, circuit, or graph; otherwise false.
 
 Return STRICTLY VALID JSON:
 {
@@ -456,14 +576,15 @@ Return STRICTLY VALID JSON:
     { "id": "C", "text": string },
     { "id": "D", "text": string }
   ],
-  "correctAnswer": string
+  "correctAnswer": string,
+  "hasDiagram": boolean
 }`;
 
   for (let k = 0; k < uniqueKeys.length; k++) {
     const key = uniqueKeys[k];
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 20000, 2);
+        const res = await callGemini(key, model, prompt, targetPdfBase64, 20000, 2);
         if (res) {
           const parsed = JSON.parse(res);
           if (parsed && parsed.questionText) {
@@ -491,6 +612,7 @@ async function formatSingleQuestionWithAi(
 Format this question into clean English with standard KaTeX LaTeX math ($...$).
 CRITICAL: Completely IGNORE and REMOVE any Hindi translation or Devanagari text.
 Ensure equations, exponents, square roots, fractions, vectors, and units use standard LaTeX ($...$).
+Also check if the question text references a figure, diagram, circuit, or graph (e.g. "shown in figure"). Set "hasDiagram": true or false.
 
 Raw Question Statement:
 ${q.questionText || ''}
@@ -508,7 +630,8 @@ Return STRICTLY VALID JSON:
     { "id": "B", "text": string },
     { "id": "C", "text": string },
     { "id": "D", "text": string }
-  ]
+  ],
+  "hasDiagram": boolean
 }`;
 
   for (const key of uniqueKeys) {
@@ -521,6 +644,7 @@ Return STRICTLY VALID JSON:
             ...q,
             questionText: parsed.questionText || q.questionText,
             options: isNumerical ? [] : (parsed.options || q.options),
+            hasDiagram: typeof parsed.hasDiagram === 'boolean' ? parsed.hasDiagram : q.hasDiagram,
           };
           return sanitizeQuestion(formatted);
         }
@@ -677,6 +801,8 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
       startQuestion: Number(s.startQuestion) || 1,
       endQuestion: Number(s.endQuestion) || 25,
       totalQuestions: Number(s.totalQuestions) || 25,
+      startPage: s.startPage ? Number(s.startPage) : undefined,
+      endPage: s.endPage ? Number(s.endPage) : undefined,
     }));
   } else {
     subjects = [
@@ -753,6 +879,8 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
         options: opts,
         correctAnswer: q.correctAnswer || correct,
         solution: q.solution || '',
+        imageUrl: q.imageUrl,
+        hasDiagram: q.hasDiagram,
       }));
     } else {
       fullQuestions.push({

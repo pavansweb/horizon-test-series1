@@ -555,6 +555,17 @@ export default function ResultPage({
                     </div>
                   )}
 
+                  {/* Diagram / Image if attached */}
+                  {selectedQuestion.imageUrl && (
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex justify-center">
+                      <img
+                        src={selectedQuestion.imageUrl}
+                        alt={`Question ${selectedQuestion.questionNumber} diagram`}
+                        className="max-h-56 max-w-full object-contain rounded"
+                      />
+                    </div>
+                  )}
+
                   {/* Render Options if available */}
                   {selectedQuestion.options && selectedQuestion.options.length > 0 && (
                     <div className="space-y-1.5">

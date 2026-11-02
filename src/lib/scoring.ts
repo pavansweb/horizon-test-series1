@@ -128,6 +128,7 @@ export function calculateTestResult(
       questionText: structQ?.questionText,
       options: structQ?.options,
       solution: structQ?.solution,
+      imageUrl: structQ?.imageUrl,
       type: structQ ? structQ.type : isIntQ ? 'numerical' : 'mcq',
     });
   }

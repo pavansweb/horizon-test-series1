@@ -129,12 +129,6 @@ export default function StudentHomePage() {
                   className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden"
                 >
                   <div className="p-5 space-y-3">
-                    <div className="flex items-center justify-end">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {test.duration} mins
-                      </span>
-                    </div>
-
                     <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 leading-snug">
                       {test.title}
                     </h3>
