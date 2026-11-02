@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthenticatedAdmin } from '@/lib/auth';
 import { SubjectConfig, TestQuestion } from '@/lib/types';
+import { savePdf } from '@/lib/storage';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Up to 60 seconds for AI paper analysis
+export const maxDuration = 60; // Up to 60 seconds where supported
 
 interface ParsedExamData {
   title?: string;
@@ -25,15 +27,10 @@ interface ParsedExamData {
   questions?: Array<Partial<TestQuestion>>;
 }
 
-// Active Google Gemini models in priority order:
-// gemini-3.5-flash-lite provides blazing speed and reliable quota,
-// with gemini-3.5-flash, gemini-3.1-flash-lite, and gemini-3.8-flash as resilient fallbacks.
 const GEMINI_MODELS = [
-  'gemini-3.5-flash-lite',
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
-  'gemini-flash-latest',
 ];
 
 export async function POST(request: NextRequest) {
@@ -41,7 +38,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Load primary, backup, and pooled Gemini API keys for seamless rotation
   const apiKeys: string[] = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_BACKUP_API_KEY,
@@ -62,34 +58,69 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
 
-    // Handle single question formatting action
+    // Handle JSON actions: format-single-question & extract-chunk
     if (contentType.includes('application/json')) {
       const body = await request.json().catch(() => ({}));
+
+      // Action 1: Format single question
       if (body.action === 'format-single-question') {
         const formatted = await formatSingleQuestionWithAi(uniqueKeys, body.question);
         return NextResponse.json({ success: true, question: formatted });
       }
+
+      // Action 2: Extract specific question chunk (lightweight & fast for Vercel)
+      if (body.action === 'extract-chunk') {
+        let pdfBase64 = body.pdfBase64 || '';
+        if (!pdfBase64 && body.pdfUrl) {
+          pdfBase64 = await resolvePdfBase64(body.pdfUrl);
+        }
+        if (!pdfBase64) {
+          return NextResponse.json({ success: false, error: 'No PDF provided for chunk extraction' }, { status: 400 });
+        }
+        const questions = await extractQuestionChunk(
+          uniqueKeys,
+          pdfBase64,
+          body.subject,
+          Number(body.startQuestion),
+          Number(body.endQuestion),
+          Number(body.chunkIndex || 0)
+        );
+        return NextResponse.json({ success: true, questions });
+      }
     }
 
     let pdfBase64 = '';
+    let savedPdfUrl = '';
+    let requestedAction = 'parse-structure';
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
+      requestedAction = (formData.get('action') as string) || 'parse-structure';
       const file = formData.get('pdf') as File | null;
+
       if (file) {
         const buffer = Buffer.from(await file.arrayBuffer());
         pdfBase64 = buffer.toString('base64');
+        try {
+          // Persist uploaded PDF so subsequent chunk queries don't need re-upload
+          savedPdfUrl = await savePdf(buffer, file.name, file.type || 'application/pdf');
+        } catch (saveErr) {
+          console.warn('PDF persistence failed, continuing in memory:', saveErr);
+        }
       } else {
         const pdfUrl = formData.get('pdfUrl') as string | null;
         if (pdfUrl) {
+          savedPdfUrl = pdfUrl;
           pdfBase64 = await resolvePdfBase64(pdfUrl);
         }
       }
     } else {
       const body = await request.json().catch(() => ({}));
+      requestedAction = body.action || 'parse-structure';
       if (body.pdfBase64) {
         pdfBase64 = body.pdfBase64;
       } else if (body.pdfUrl) {
+        savedPdfUrl = body.pdfUrl;
         pdfBase64 = await resolvePdfBase64(body.pdfUrl);
       }
     }
@@ -140,7 +171,7 @@ Critical Instructions:
 
       for (const model of GEMINI_MODELS) {
         try {
-          const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 25000);
+          const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 8000, 0);
           if (res) {
             parsedStructure = JSON.parse(res);
             break;
@@ -180,8 +211,22 @@ Critical Instructions:
     const answerKey = parsedStructure.answerKey || {};
     const integerQuestions = (parsedStructure.integerQuestions || []).map(Number);
 
-    // Step 2: Split subject question ranges into parallel chunks (max 15 questions per chunk)
-    // Chunking ensures fast 5-8s parallel queries with zero token cutoff or JSON truncation risk.
+    // If only structure was requested (or running under strict Vercel timeout), return structure immediately!
+    // The client will extract question chunks in fast, separate 3-5s calls.
+    if (requestedAction === 'parse-structure') {
+      return NextResponse.json({
+        success: true,
+        pdfUrl: savedPdfUrl,
+        data: {
+          ...parsedStructure,
+          subjects,
+          integerQuestions,
+          answerKey,
+        },
+      });
+    }
+
+    // Fallback: full extraction if requested in one go
     const chunks: Array<{
       subject: SubjectConfig;
       start: number;
@@ -201,8 +246,6 @@ Critical Instructions:
       }
     }
 
-    console.log(`Extracting questions across ${chunks.length} parallel batches...`);
-
     const chunkPromises = chunks.map((c) =>
       extractQuestionChunk(uniqueKeys, pdfBase64, c.subject, c.start, c.end, c.chunkIndex)
     );
@@ -210,7 +253,6 @@ Critical Instructions:
     const chunkResults = await Promise.all(chunkPromises);
     const extractedQuestions: TestQuestion[] = chunkResults.flat();
 
-    // Step 3: Combine and enrich questions
     const enriched = ensureFullExamQuestions({
       ...parsedStructure,
       subjects,
@@ -221,7 +263,7 @@ Critical Instructions:
 
     return NextResponse.json({
       success: true,
-      totalKeysConfigured: uniqueKeys.length,
+      pdfUrl: savedPdfUrl,
       data: enriched,
     });
   } catch (error: unknown) {
@@ -275,13 +317,12 @@ Return STRICTLY VALID JSON:
   ]
 }`;
 
-  // Try each API key starting at an offset based on chunkIndex to distribute load
   for (let k = 0; k < uniqueKeys.length; k++) {
     const key = uniqueKeys[(chunkIndex + k) % uniqueKeys.length];
 
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 30000, 1);
+        const res = await callGemini(key, model, prompt, pdfBase64, 10000, 0);
         if (res) {
           const parsed = JSON.parse(res);
           if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
@@ -299,7 +340,6 @@ Return STRICTLY VALID JSON:
 
 /**
  * AI Formatter for a single question statement & options.
- * Transforms plain text math & units into standard KaTeX notation.
  */
 async function formatSingleQuestionWithAi(
   uniqueKeys: string[],
@@ -349,13 +389,9 @@ Return STRICTLY VALID JSON:
   return q;
 }
 
-/**
- * Cleans raw string from Gemini into valid JSON string
- */
 function cleanJsonString(text: string): string {
   let cleaned = text.trim();
 
-  // Strip markdown code fences
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.slice(7);
   } else if (cleaned.startsWith('```')) {
@@ -366,7 +402,6 @@ function cleanJsonString(text: string): string {
   }
   cleaned = cleaned.trim();
 
-  // Find first { or [ and last } or ]
   const firstBrace = cleaned.indexOf('{');
   const firstBracket = cleaned.indexOf('[');
   let start = 0;
@@ -386,16 +421,11 @@ function cleanJsonString(text: string): string {
   }
 
   cleaned = cleaned.substring(start, end).trim();
-
-  // Strip trailing commas before closing braces/brackets
   cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
 
   return cleaned;
 }
 
-/**
- * Helper to call Gemini generateContent with timeout & retry on 503/429
- */
 async function callGemini(
   apiKey: string,
   model: string,
@@ -442,7 +472,6 @@ async function callGemini(
       const status = response.status;
       const errorMsg = data.error?.message || `Status ${status}`;
 
-      // If temporary 503 (high demand) or 429 rate limit, retry once with brief backoff
       if ((status === 503 || status === 429) && attempt < retries) {
         await new Promise((r) => setTimeout(r, 1000 + Math.random() * 500));
         continue;
@@ -463,20 +492,13 @@ async function callGemini(
   return null;
 }
 
-/**
- * Normalizes option text to remove redundant prefixes like "(A) ", "1. ", etc.
- */
 function cleanOptionText(raw: string, optId: string): string {
   if (!raw) return '';
   let cleaned = raw.trim();
-  // Remove leading "(A) ", "(1) ", "A. ", "1. ", "A) ", "1) "
   cleaned = cleaned.replace(new RegExp(`^\\s*[(]?(?:${optId}|[1-4])[).:-]\\s*`, 'i'), '').trim();
   return cleaned || raw;
 }
 
-/**
- * Ensures that all questions (1 to totalQuestions, e.g. 75 or 90) are present and enriched.
- */
 function ensureFullExamQuestions(parsed: ParsedExamData) {
   let subjects: SubjectConfig[] = [];
 
@@ -600,21 +622,37 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
 }
 
 async function resolvePdfBase64(pdfUrl: string): Promise<string> {
-  if (pdfUrl.startsWith('/uploads/') || pdfUrl.startsWith('/')) {
-    const filename = pdfUrl.replace(/^\/uploads\//, '').replace(/^\//, '');
-    const localUploadPath = path.join(process.cwd(), 'public', 'uploads', filename);
-    if (fs.existsSync(localUploadPath)) {
-      return fs.readFileSync(localUploadPath).toString('base64');
-    }
-    const publicPath = path.join(process.cwd(), 'public', filename);
-    if (fs.existsSync(publicPath)) {
-      return fs.readFileSync(publicPath).toString('base64');
-    }
+  const filename = path.basename(pdfUrl.split('?')[0]);
+
+  // 1. Check local public/uploads
+  const localUploadPath = path.join(process.cwd(), 'public', 'uploads', filename);
+  if (fs.existsSync(localUploadPath)) {
+    return fs.readFileSync(localUploadPath).toString('base64');
   }
 
-  const fetchRes = await fetch(pdfUrl);
+  // 2. Check public root
+  const publicPath = path.join(process.cwd(), 'public', filename);
+  if (fs.existsSync(publicPath)) {
+    return fs.readFileSync(publicPath).toString('base64');
+  }
+
+  // 3. Check os.tmpdir() for serverless Vercel
+  const tmpPath = path.join(os.tmpdir(), 'jee-portal-uploads', filename);
+  if (fs.existsSync(tmpPath)) {
+    return fs.readFileSync(tmpPath).toString('base64');
+  }
+
+  // 4. If remote URL (Supabase storage or Vercel Blob)
+  let resolvedUrl = pdfUrl;
+  if (pdfUrl.startsWith('/')) {
+    const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    const base = host ? `https://${host}` : 'http://localhost:3000';
+    resolvedUrl = `${base}${pdfUrl}`;
+  }
+
+  const fetchRes = await fetch(resolvedUrl);
   if (!fetchRes.ok) {
-    throw new Error(`Failed to fetch PDF from URL: ${pdfUrl}`);
+    throw new Error(`Failed to fetch PDF from URL: ${pdfUrl} (status ${fetchRes.status})`);
   }
   const arrayBuf = await fetchRes.arrayBuffer();
   return Buffer.from(arrayBuf).toString('base64');

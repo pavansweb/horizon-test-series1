@@ -125,28 +125,46 @@ export function TestUploadModal({
     try {
       setStep('processing');
       setError(null);
-      setProcessingStatus('Uploading question paper & contacting Gemini AI...');
+      setProcessingStatus('Uploading question paper & analyzing exam structure...');
 
+      let workingPdfUrl = testToEdit?.pdfUrl || '';
+
+      // Phase 1: Upload PDF & extract structure, subjects, and full answer key
       const formData = new FormData();
       if (pdfFile) {
         formData.append('pdf', pdfFile);
-      } else if (testToEdit?.pdfUrl) {
-        formData.append('pdfUrl', testToEdit.pdfUrl);
+      } else if (workingPdfUrl) {
+        formData.append('pdfUrl', workingPdfUrl);
       }
-
-      setProcessingStatus('Gemini AI is reading PDF, extracting questions, formulas & answer keys...');
+      formData.append('action', 'parse-structure');
 
       const res = await fetch('/api/admin/gemini/parse-paper', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await res.json();
+      const resText = await res.text();
+      let result;
+      try {
+        result = JSON.parse(resText);
+      } catch {
+        throw new Error(
+          res.status === 504
+            ? 'The server timed out while processing this PDF. Try entering questions manually or uploading a smaller PDF.'
+            : res.status === 413
+            ? 'PDF file is too large for upload. Please use a file under 4.5 MB.'
+            : `Server returned error (${res.status}): ${resText.slice(0, 150)}`
+        );
+      }
+
       if (!res.ok || !result.success) {
         throw new Error(result.error || 'Gemini AI failed to format this paper.');
       }
 
       const parsed = result.data;
+      if (result.pdfUrl) {
+        workingPdfUrl = result.pdfUrl;
+      }
 
       if (parsed.title) setTitle(parsed.title);
       if (parsed.durationMinutes) setDuration(parsed.durationMinutes);
@@ -177,31 +195,65 @@ export function TestUploadModal({
         });
       }
 
-      // Extracted structured questions from parallel AI engine
-      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-        setQuestions(parsed.questions);
-        const derivedKey: Record<number, string> = { ...mergedKey };
-        parsed.questions.forEach((q: TestQuestion) => {
-          if (q.questionNumber && q.correctAnswer) {
-            derivedKey[q.questionNumber] = q.correctAnswer.toUpperCase().trim();
-          }
-        });
-        setAnswerKey(derivedKey);
-        setStep('preview');
-        return;
+      // Phase 2: Extract question statements & LaTeX formulas in parallel batches
+      setProcessingStatus('Exam structure & answer key detected. Extracting question statements & formulas...');
+
+      const chunksToExtract: Array<{
+        subject: SubjectConfig;
+        start: number;
+        end: number;
+        chunkIndex: number;
+      }> = [];
+
+      let cIdx = 0;
+      for (const subj of effectiveSubjects) {
+        const total = subj.endQuestion - subj.startQuestion + 1;
+        if (total > 15) {
+          const mid = subj.startQuestion + Math.floor(total / 2) - 1;
+          chunksToExtract.push({ subject: subj, start: subj.startQuestion, end: mid, chunkIndex: cIdx++ });
+          chunksToExtract.push({ subject: subj, start: mid + 1, end: subj.endQuestion, chunkIndex: cIdx++ });
+        } else {
+          chunksToExtract.push({ subject: subj, start: subj.startQuestion, end: subj.endQuestion, chunkIndex: cIdx++ });
+        }
       }
 
-      // Check extracted questions fallback
-      const parsedQuestions: TestQuestion[] = Array.isArray(parsed.questions) ? parsed.questions : [];
       const questionMap = new Map<number, TestQuestion>();
-      parsedQuestions.forEach((q) => {
-        if (q && q.questionNumber) {
-          questionMap.set(q.questionNumber, q);
-          if (q.correctAnswer && !mergedKey[q.questionNumber]) {
-            mergedKey[q.questionNumber] = String(q.correctAnswer).toUpperCase().trim();
+
+      if (workingPdfUrl) {
+        const chunkPromises = chunksToExtract.map(async (c) => {
+          try {
+            const cRes = await fetch('/api/admin/gemini/parse-paper', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'extract-chunk',
+                pdfUrl: workingPdfUrl,
+                subject: c.subject,
+                startQuestion: c.start,
+                endQuestion: c.end,
+                chunkIndex: c.chunkIndex,
+              }),
+            });
+            const cText = await cRes.text();
+            const cData = JSON.parse(cText);
+            if (cData.success && Array.isArray(cData.questions)) {
+              cData.questions.forEach((q: TestQuestion) => {
+                if (q && q.questionNumber) {
+                  questionMap.set(q.questionNumber, q);
+                  if (q.correctAnswer && !mergedKey[q.questionNumber]) {
+                    mergedKey[q.questionNumber] = String(q.correctAnswer).toUpperCase().trim();
+                  }
+                }
+              });
+              setProcessingStatus(`Extracted ${questionMap.size} questions...`);
+            }
+          } catch (cErr) {
+            console.warn(`Chunk ${c.start}-${c.end} extraction skipped:`, cErr);
           }
-        }
-      });
+        });
+
+        await Promise.all(chunkPromises);
+      }
 
       // Calculate total questions to ensure NO missing questions
       const totalFromSubjects = effectiveSubjects.reduce((sum, s) => sum + (s.totalQuestions || 25), 0);
@@ -228,7 +280,7 @@ export function TestUploadModal({
             subjectId: existing.subjectId || sub.id,
             type: isInt ? 'numerical' : (existing.type || 'mcq'),
             questionText:
-              existing.questionText && existing.questionText.trim().length > 5
+              existing.questionText && existing.questionText.trim().length > 3
                 ? existing.questionText
                 : `Question ${q} statement (refer to Question Paper PDF)`,
             options: isInt
