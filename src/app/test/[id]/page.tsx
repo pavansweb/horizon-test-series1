@@ -415,21 +415,21 @@ export default function TestAttemptPage({
               </>
             )}
 
-            <div className="flex-1" />
-
             {/* Action Buttons Bar: Save & Next, Save & Mark, Mark for Review, Back, Next, Submit */}
-            <NtaActionBar
-              onSaveAndNext={handleSaveAndNext}
-              onSaveAndMarkForReview={handleSaveAndMarkForReview}
-              onClearResponse={handleClearResponse}
-              onMarkForReviewAndNext={handleMarkForReviewAndNext}
-              onPrevious={() => navigateToQuestion(currentQuestionNumber - 1)}
-              onNext={() => navigateToQuestion(currentQuestionNumber + 1)}
-              onSubmitTest={() => setIsSubmitModalOpen(true)}
-              isFirstQuestion={currentQuestionNumber <= 1}
-              isLastQuestion={currentQuestionNumber >= totalQuestionsCount}
-              hasSelectedOption={!!selectedOption}
-            />
+            <div className="sticky bottom-0 z-20 bg-white dark:bg-slate-900 shadow-md">
+              <NtaActionBar
+                onSaveAndNext={handleSaveAndNext}
+                onSaveAndMarkForReview={handleSaveAndMarkForReview}
+                onClearResponse={handleClearResponse}
+                onMarkForReviewAndNext={handleMarkForReviewAndNext}
+                onPrevious={() => navigateToQuestion(currentQuestionNumber - 1)}
+                onNext={() => navigateToQuestion(currentQuestionNumber + 1)}
+                onSubmitTest={() => setIsSubmitModalOpen(true)}
+                isFirstQuestion={currentQuestionNumber <= 1}
+                isLastQuestion={currentQuestionNumber >= totalQuestionsCount}
+                hasSelectedOption={!!selectedOption}
+              />
+            </div>
           </div>
 
           {/* Center Splitter with Collapse/Expand Arrow Button ('>') */}

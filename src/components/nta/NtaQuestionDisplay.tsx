@@ -65,7 +65,7 @@ export function NtaQuestionDisplay({
   };
 
   return (
-    <div className="w-full flex flex-col bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 select-none transition-colors">
+    <div className="w-full flex flex-col bg-white dark:bg-slate-900 select-none transition-colors">
       {/* 1. Header Bar: Question No, Subject Tag, Section, Marks & PDF Toggle */}
       <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 gap-2">
         <div className="flex items-center gap-2.5">

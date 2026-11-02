@@ -25,10 +25,11 @@ interface ParsedExamData {
   questions?: Array<Partial<TestQuestion>>;
 }
 
-// Active Google Gemini models in priority order
+// Active Google Gemini models in priority order (using top-tier Gemini 3.8 / 3.5 models)
 const GEMINI_MODELS = [
-  'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
   'gemini-flash-latest',
 ];
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Load primary and backup Gemini API keys for seamless failover & rate limit mitigation
+  // Load primary and backup Gemini API keys for seamless failover & parallel distribution
   const apiKeys: string[] = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_BACKUP_API_KEY,
@@ -87,10 +88,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = `You are an expert exam analyzer for JEE Main examination papers.
-Analyze this JEE question paper PDF thoroughly. Extract the complete structure, answer key, and questions.
-Keep solutions empty "" to conserve tokens and ensure speed and full question extraction.
-
+    // Step 1: Extract overall paper structure & full answer key
+    const structurePrompt = `You are an expert exam analyzer for JEE Main examination papers.
+Analyze this JEE question paper PDF thoroughly. Extract the overall exam structure and complete answer key.
 Return a STRICTLY VALID JSON object with this exact schema:
 {
   "title": string,
@@ -110,11 +110,122 @@ Return a STRICTLY VALID JSON object with this exact schema:
   },
   "pdfStartPage": number,
   "pdfEndPage": number,
-  "detectedSummary": string,
+  "detectedSummary": string
+}
+
+Critical Instructions:
+1. Preserve subject sequence as they appear in the question paper (e.g. Mathematics Q1-25 first, or Physics Q1-25 first).
+2. Extract the complete answer key for every question (1 to 75 or 90). Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
+3. Identify numerical/integer questions (e.g. Q21-25, Q46-50, Q71-75).
+4. Return ONLY valid JSON.`;
+
+    let parsedStructure: ParsedExamData | null = null;
+    let lastError: string | null = null;
+
+    for (let keyIdx = 0; keyIdx < uniqueKeys.length; keyIdx++) {
+      const activeKey = uniqueKeys[keyIdx];
+
+      for (const model of GEMINI_MODELS) {
+        try {
+          const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 25000);
+          if (res) {
+            parsedStructure = JSON.parse(res);
+            break;
+          }
+        } catch (err: unknown) {
+          lastError = (err as Error)?.message || 'Gemini structure call failed';
+          console.warn(`Structure call with ${model} on key #${keyIdx + 1} failed:`, err);
+        }
+      }
+
+      if (parsedStructure) break;
+    }
+
+    if (!parsedStructure) {
+      return NextResponse.json(
+        { success: false, error: `Failed to analyze paper structure: ${lastError}` },
+        { status: 502 }
+      );
+    }
+
+    // Normalize subjects
+    const subjects: SubjectConfig[] =
+      parsedStructure.subjects && Array.isArray(parsedStructure.subjects) && parsedStructure.subjects.length > 0
+        ? parsedStructure.subjects.map((s) => ({
+            id: String(s.id || '').toLowerCase() || 'physics',
+            name: s.name || s.id || 'Physics',
+            startQuestion: Number(s.startQuestion) || 1,
+            endQuestion: Number(s.endQuestion) || 25,
+            totalQuestions: Number(s.totalQuestions) || 25,
+          }))
+        : [
+            { id: 'mathematics', name: 'Mathematics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
+            { id: 'physics', name: 'Physics', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
+            { id: 'chemistry', name: 'Chemistry', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
+          ];
+
+    const answerKey = parsedStructure.answerKey || {};
+    const integerQuestions = (parsedStructure.integerQuestions || []).map(Number);
+
+    // Step 2: Extract ALL questions for each subject in parallel (English only, with options and formulas)
+    console.log(`Extracting questions across ${subjects.length} subjects in parallel...`);
+    const subjectPromises = subjects.map((subj, index) => {
+      // Distribute across available API keys to prevent rate limits
+      const keyForSubj = uniqueKeys[index % uniqueKeys.length];
+      return extractSubjectQuestions(keyForSubj, pdfBase64, subj);
+    });
+
+    const subjectResults = await Promise.all(subjectPromises);
+    const extractedQuestions: TestQuestion[] = subjectResults.flat();
+
+    // Step 3: Combine and enrich questions
+    const enriched = ensureFullExamQuestions({
+      ...parsedStructure,
+      subjects,
+      integerQuestions,
+      answerKey,
+      questions: extractedQuestions,
+    });
+
+    return NextResponse.json({
+      success: true,
+      totalKeysConfigured: uniqueKeys.length,
+      data: enriched,
+    });
+  } catch (error: unknown) {
+    console.error('Unhandled error in Gemini parse route:', error);
+    return NextResponse.json(
+      { success: false, error: (error as Error)?.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Extracts all questions for a single subject in parallel.
+ * Enforces English only, LaTeX formulas, and complete options.
+ */
+async function extractSubjectQuestions(
+  apiKey: string,
+  pdfBase64: string,
+  subject: SubjectConfig
+): Promise<TestQuestion[]> {
+  const prompt = `You are an expert exam analyzer for JEE Main examination papers.
+Analyze this JEE question paper PDF. Extract ALL questions from Question ${subject.startQuestion} to Question ${subject.endQuestion} (${subject.name}).
+
+CRITICAL REQUIREMENTS:
+1. ONLY ENGLISH: Extract ONLY the English question statement and English options. Completely IGNORE Hindi translation!
+2. NO PLACEHOLDERS: Extract the real question statement and real option text for EVERY question from ${subject.startQuestion} to ${subject.endQuestion}. Do NOT output generic placeholders!
+3. MCQs must have 4 options (A, B, C, D) with their exact text. Numerical/Integer questions must have empty options [].
+4. Convert math formulas and equations to LaTeX notation ($...$).
+5. DO NOT provide verbose solutions (keep solution empty "" to preserve tokens and response speed).
+
+Return STRICTLY VALID JSON:
+{
   "questions": [
     {
       "questionNumber": number,
-      "subjectId": "physics" | "chemistry" | "mathematics",
+      "subjectId": "${subject.id.toLowerCase()}",
       "type": "mcq" | "numerical",
       "questionText": string,
       "options": [
@@ -126,128 +237,69 @@ Return a STRICTLY VALID JSON object with this exact schema:
       "correctAnswer": string
     }
   ]
-}
+}`;
 
-Critical Instructions:
-1. SUBJECT SEQUENCE & ORDER:
-   Examine which subject appears FIRST in the question paper!
-   - If Mathematics is first (e.g. Q1-25), list Mathematics as first subject.
-   - If Physics is first (e.g. Q1-25), list Physics first.
-   - If Chemistry is first, list Chemistry first.
-   - Ensure startQuestion and endQuestion cover all questions (e.g. 1-25, 26-50, 51-75).
-
-2. INTEGER QUESTIONS:
-   Identify which questions are Numerical Value / Section B type (e.g. 21-25, 46-50, 71-75).
-   List them in the "integerQuestions" array.
-
-3. ANSWER KEY EXTRACTION:
-   - Search the entire PDF (especially the last few pages) for the official Answer Key or Solutions.
-   - For MCQs: convert options (1, 2, 3, 4) to uppercase letters ('A', 'B', 'C', 'D').
-   - For Numerical questions: preserve the numerical answer string (e.g. "5", "12").
-   - Populate EVERY question in "answerKey" (e.g. "1": "C", "2": "D", ...).
-
-4. PAGE RANGES FOR CBT STUDENT EXAM:
-   - pdfStartPage: 1-based page number where Question 1 starts.
-   - pdfEndPage: 1-based page number where the LAST QUESTION ends, BEFORE solutions begin.
-
-5. QUESTIONS ARRAY:
-   - Extract questions into "questions". For MCQs, provide all 4 options. For numerical, empty options [].
-   - Use standard LaTeX $...$ for formulas.
-   - Return ONLY clean, valid JSON matching the schema.`;
-
-    let lastError: string | null = null;
-
-    // Loop through available API keys and models with automatic rotation on rate limits / quota exhaustion
-    for (let keyIdx = 0; keyIdx < uniqueKeys.length; keyIdx++) {
-      const activeKey = uniqueKeys[keyIdx];
-      let keyHitRateLimit = false;
-
-      for (const model of GEMINI_MODELS) {
-        const controller = new AbortController();
-        const timeoutTimer = setTimeout(() => controller.abort(), 45000);
-
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    { text: prompt },
-                    {
-                      inline_data: {
-                        mime_type: 'application/pdf',
-                        data: pdfBase64,
-                      },
-                    },
-                  ],
-                },
-              ],
-              generationConfig: {
-                response_mime_type: 'application/json',
-                temperature: 0.1,
-              },
-            }),
-            signal: controller.signal,
-          });
-
-          const data = await response.json();
-
-          if (response.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-            const rawText = data.candidates[0].content.parts[0].text;
-            const cleanedText = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-            const parsed = JSON.parse(cleanedText);
-
-            // Ensure complete exam structure and synthesize any missing questions
-            const enriched = ensureFullExamQuestions(parsed);
-
-            return NextResponse.json({
-              success: true,
-              modelUsed: model,
-              keyIndexUsed: keyIdx + 1,
-              totalKeysConfigured: uniqueKeys.length,
-              data: enriched,
-            });
-          } else {
-            const errMsg = data.error?.message || `Model ${model} returned status ${response.status}`;
-            lastError = errMsg;
-            const isRateLimit = response.status === 429 || /quota|rate\s*limit|resource_exhausted/i.test(errMsg);
-            console.warn(`Horizon AI (${model}, Key #${keyIdx + 1}) failed: ${errMsg}`);
-
-            if (isRateLimit) {
-              keyHitRateLimit = true;
-              console.warn(`Key #${keyIdx + 1} hit rate limit / quota, rotating to backup key if available...`);
-              break; // Switch to the next API key immediately
-            }
-          }
-        } catch (err: unknown) {
-          lastError = (err as Error)?.message || 'Network error';
-          console.warn(`Error with ${model} on Key #${keyIdx + 1}:`, err);
-        } finally {
-          clearTimeout(timeoutTimer);
+  for (const model of GEMINI_MODELS) {
+    try {
+      const res = await callGemini(apiKey, model, prompt, pdfBase64, 35000);
+      if (res) {
+        const parsed = JSON.parse(res);
+        if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+          return parsed.questions as TestQuestion[];
         }
       }
+    } catch (err) {
+      console.warn(`Extraction for ${subject.name} with ${model} failed, trying next model:`, err);
+    }
+  }
 
-      if (keyHitRateLimit && keyIdx < uniqueKeys.length - 1) {
-        continue;
-      }
+  return [];
+}
+
+/**
+ * Helper to call Gemini generateContent with timeout
+ */
+async function callGemini(
+  apiKey: string,
+  model: string,
+  promptText: string,
+  pdfBase64: string,
+  timeoutMs: number
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              { inline_data: { mime_type: 'application/pdf', data: pdfBase64 } },
+            ],
+          },
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+          temperature: 0.1,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json();
+    if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const rawText = data.candidates[0].content.parts[0].text;
+      return rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Gemini parsing failed across all models. Last error: ${lastError}`,
-      },
-      { status: 502 }
-    );
-  } catch (error: unknown) {
-    console.error('Unhandled error in Gemini parse route:', error);
-    return NextResponse.json(
-      { success: false, error: (error as Error)?.message || 'Internal server error' },
-      { status: 500 }
-    );
+    throw new Error(data.error?.message || `Status ${response.status}`);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -257,7 +309,6 @@ Critical Instructions:
  * their subject section, question type, and correct answer key from Gemini.
  */
 function ensureFullExamQuestions(parsed: ParsedExamData) {
-  // Normalize subjects
   let subjects: SubjectConfig[] = [];
 
   if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
@@ -276,12 +327,10 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
     ];
   }
 
-  // Normalize integer questions
   const integerQuestions: number[] = Array.isArray(parsed.integerQuestions)
     ? parsed.integerQuestions.map(Number)
     : [21, 22, 23, 24, 25, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75];
 
-  // Normalize answer key
   const answerKey: Record<string, string> = {};
   if (parsed.answerKey && typeof parsed.answerKey === 'object') {
     Object.entries(parsed.answerKey).forEach(([k, v]) => {
@@ -291,20 +340,17 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
     });
   }
 
-  // Index existing parsed questions
   const existingQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
   const questionMap = new Map<number, Partial<TestQuestion>>();
   for (const q of existingQuestions) {
     if (q && typeof q.questionNumber === 'number') {
       questionMap.set(q.questionNumber, q);
-      // Merge answer into answer key if present
       if (q.correctAnswer && !answerKey[String(q.questionNumber)]) {
         answerKey[String(q.questionNumber)] = String(q.correctAnswer).toUpperCase().trim();
       }
     }
   }
 
-  // Compute total questions
   const totalFromSubjects = subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
   const totalFromKeys = Object.keys(answerKey).length;
   const maxKeyNum = Object.keys(answerKey).reduce((max, k) => Math.max(max, Number(k) || 0), 0);
@@ -313,7 +359,6 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
   const fullQuestions: TestQuestion[] = [];
 
   for (let qNum = 1; qNum <= totalQuestions; qNum++) {
-    // Determine subject
     const subject =
       subjects.find((s) => qNum >= s.startQuestion && qNum <= s.endQuestion) ||
       subjects[0];
@@ -332,9 +377,9 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
         subjectId: q.subjectId || subject.id,
         type: isInteger ? 'numerical' : (q.type || 'mcq'),
         questionText:
-          q.questionText && q.questionText.trim().length > 5
+          q.questionText && q.questionText.trim().length > 3
             ? q.questionText
-            : `Question ${qNum} (refer to original question paper PDF)`,
+            : `Question ${qNum}`,
         options: isInteger
           ? []
           : (Array.isArray(q.options) && q.options.length === 4
@@ -353,7 +398,7 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
         questionNumber: qNum,
         subjectId: subject.id,
         type: isInteger ? 'numerical' : 'mcq',
-        questionText: `Question ${qNum} (refer to original question paper PDF)`,
+        questionText: `Question ${qNum}`,
         options: isInteger
           ? []
           : [

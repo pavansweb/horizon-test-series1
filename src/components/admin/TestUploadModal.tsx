@@ -175,7 +175,21 @@ export function TestUploadModal({
         });
       }
 
-      // Check extracted questions
+      // Extracted structured questions from parallel AI engine
+      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        setQuestions(parsed.questions);
+        const derivedKey: Record<number, string> = { ...mergedKey };
+        parsed.questions.forEach((q: TestQuestion) => {
+          if (q.questionNumber && q.correctAnswer) {
+            derivedKey[q.questionNumber] = q.correctAnswer.toUpperCase().trim();
+          }
+        });
+        setAnswerKey(derivedKey);
+        setStep('preview');
+        return;
+      }
+
+      // Check extracted questions fallback
       const parsedQuestions: TestQuestion[] = Array.isArray(parsed.questions) ? parsed.questions : [];
       const questionMap = new Map<number, TestQuestion>();
       parsedQuestions.forEach((q) => {
