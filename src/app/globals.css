@@ -281,3 +281,37 @@ html.dark .palette-scroll-wrap {
 .nta-subject-tab-inactive:hover {
   background-color: #bbdefb;
 }
+
+/* KaTeX styling & dark theme integration */
+.katex {
+  font-size: 1.05em;
+  color: inherit;
+  white-space: normal;
+}
+
+.katex-display {
+  margin: 0.5em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+
+html.dark .katex,
+html[data-theme="dark"] .katex {
+  color: #f1f5f9 !important;
+}
+
+html.dark .katex .mord,
+html.dark .katex .mbin,
+html.dark .katex .mrel,
+html.dark .katex .mopen,
+html.dark .katex .mclose,
+html.dark .katex .mpunct,
+html.dark .katex .inner,
+html.dark .katex .vlist-t,
+html.dark .katex .vlist-r,
+html.dark .katex .frac-line {
+  color: inherit !important;
+  border-color: #cbd5e1 !important;
+}
+

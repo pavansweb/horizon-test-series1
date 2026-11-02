@@ -25,11 +25,14 @@ interface ParsedExamData {
   questions?: Array<Partial<TestQuestion>>;
 }
 
-// Active Google Gemini models in priority order (using top-tier Gemini 3.8 / 3.5 models)
+// Active Google Gemini models in priority order:
+// gemini-3.5-flash-lite provides blazing speed and reliable quota,
+// with gemini-3.5-flash, gemini-3.1-flash-lite, and gemini-3.8-flash as resilient fallbacks.
 const GEMINI_MODELS = [
-  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
+  'gemini-3.8-flash',
   'gemini-flash-latest',
 ];
 
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Load primary and backup Gemini API keys for seamless failover & parallel distribution
+  // Load primary, backup, and pooled Gemini API keys for seamless rotation
   const apiKeys: string[] = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_BACKUP_API_KEY,
@@ -57,8 +60,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let pdfBase64 = '';
     const contentType = request.headers.get('content-type') || '';
+
+    // Handle single question formatting action
+    if (contentType.includes('application/json')) {
+      const body = await request.json().catch(() => ({}));
+      if (body.action === 'format-single-question') {
+        const formatted = await formatSingleQuestionWithAi(uniqueKeys, body.question);
+        return NextResponse.json({ success: true, question: formatted });
+      }
+    }
+
+    let pdfBase64 = '';
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -115,7 +128,7 @@ Return a STRICTLY VALID JSON object with this exact schema:
 
 Critical Instructions:
 1. Preserve subject sequence as they appear in the question paper (e.g. Mathematics Q1-25 first, or Physics Q1-25 first).
-2. Extract the complete answer key for every question (1 to 75 or 90). Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
+2. Extract the complete answer key for every question (1 to 75 or 90). Search the final pages for the Answer Key / Solutions table. Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
 3. Identify numerical/integer questions (e.g. Q21-25, Q46-50, Q71-75).
 4. Return ONLY valid JSON.`;
 
@@ -159,24 +172,43 @@ Critical Instructions:
             totalQuestions: Number(s.totalQuestions) || 25,
           }))
         : [
-            { id: 'mathematics', name: 'Mathematics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
-            { id: 'physics', name: 'Physics', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
-            { id: 'chemistry', name: 'Chemistry', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
+            { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
+            { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
+            { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
           ];
 
     const answerKey = parsedStructure.answerKey || {};
     const integerQuestions = (parsedStructure.integerQuestions || []).map(Number);
 
-    // Step 2: Extract ALL questions for each subject in parallel (English only, with options and formulas)
-    console.log(`Extracting questions across ${subjects.length} subjects in parallel...`);
-    const subjectPromises = subjects.map((subj, index) => {
-      // Distribute across available API keys to prevent rate limits
-      const keyForSubj = uniqueKeys[index % uniqueKeys.length];
-      return extractSubjectQuestions(keyForSubj, pdfBase64, subj);
-    });
+    // Step 2: Split subject question ranges into parallel chunks (max 15 questions per chunk)
+    // Chunking ensures fast 5-8s parallel queries with zero token cutoff or JSON truncation risk.
+    const chunks: Array<{
+      subject: SubjectConfig;
+      start: number;
+      end: number;
+      chunkIndex: number;
+    }> = [];
 
-    const subjectResults = await Promise.all(subjectPromises);
-    const extractedQuestions: TestQuestion[] = subjectResults.flat();
+    let overallChunkIndex = 0;
+    for (const subj of subjects) {
+      const total = subj.endQuestion - subj.startQuestion + 1;
+      if (total > 15) {
+        const mid = subj.startQuestion + Math.floor(total / 2) - 1;
+        chunks.push({ subject: subj, start: subj.startQuestion, end: mid, chunkIndex: overallChunkIndex++ });
+        chunks.push({ subject: subj, start: mid + 1, end: subj.endQuestion, chunkIndex: overallChunkIndex++ });
+      } else {
+        chunks.push({ subject: subj, start: subj.startQuestion, end: subj.endQuestion, chunkIndex: overallChunkIndex++ });
+      }
+    }
+
+    console.log(`Extracting questions across ${chunks.length} parallel batches...`);
+
+    const chunkPromises = chunks.map((c) =>
+      extractQuestionChunk(uniqueKeys, pdfBase64, c.subject, c.start, c.end, c.chunkIndex)
+    );
+
+    const chunkResults = await Promise.all(chunkPromises);
+    const extractedQuestions: TestQuestion[] = chunkResults.flat();
 
     // Step 3: Combine and enrich questions
     const enriched = ensureFullExamQuestions({
@@ -202,23 +234,27 @@ Critical Instructions:
 }
 
 /**
- * Extracts all questions for a single subject in parallel.
- * Enforces English only, LaTeX formulas, and complete options.
+ * Extracts a specific range of questions (startQ to endQ) using multi-key and multi-model rotation.
  */
-async function extractSubjectQuestions(
-  apiKey: string,
+async function extractQuestionChunk(
+  uniqueKeys: string[],
   pdfBase64: string,
-  subject: SubjectConfig
+  subject: SubjectConfig,
+  startQ: number,
+  endQ: number,
+  chunkIndex: number
 ): Promise<TestQuestion[]> {
   const prompt = `You are an expert exam analyzer for JEE Main examination papers.
-Analyze this JEE question paper PDF. Extract ALL questions from Question ${subject.startQuestion} to Question ${subject.endQuestion} (${subject.name}).
+Analyze this JEE question paper PDF. Extract ALL questions from Question ${startQ} to Question ${endQ} (${subject.name}).
 
 CRITICAL REQUIREMENTS:
 1. ONLY ENGLISH: Extract ONLY the English question statement and English options. Completely IGNORE Hindi translation!
-2. NO PLACEHOLDERS: Extract the real question statement and real option text for EVERY question from ${subject.startQuestion} to ${subject.endQuestion}. Do NOT output generic placeholders!
-3. MCQs must have 4 options (A, B, C, D) with their exact text. Numerical/Integer questions must have empty options [].
-4. Convert math formulas and equations to LaTeX notation ($...$).
-5. DO NOT provide verbose solutions (keep solution empty "" to preserve tokens and response speed).
+2. NO PLACEHOLDERS: Extract the real question statement and real option text for EVERY question from ${startQ} to ${endQ}.
+3. MCQs must have 4 options (A, B, C, D) with their exact text. Strip redundant "(A)" or "1." prefixes from option text.
+4. Numerical/Integer questions must have empty options [].
+5. LATEX FORMULAS: Convert all math, units, and chemistry formulas to standard LaTeX ($...$).
+   - Examples: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$, $\\text{m/s}^2$, $10^{-8}\\text{ T}$, $\\vec{A}$, $\\mathrm{H_2SO_4}$.
+6. Keep solution empty "" to preserve tokens and response speed.
 
 Return STRICTLY VALID JSON:
 {
@@ -239,17 +275,22 @@ Return STRICTLY VALID JSON:
   ]
 }`;
 
-  for (const model of GEMINI_MODELS) {
-    try {
-      const res = await callGemini(apiKey, model, prompt, pdfBase64, 35000);
-      if (res) {
-        const parsed = JSON.parse(res);
-        if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-          return parsed.questions as TestQuestion[];
+  // Try each API key starting at an offset based on chunkIndex to distribute load
+  for (let k = 0; k < uniqueKeys.length; k++) {
+    const key = uniqueKeys[(chunkIndex + k) % uniqueKeys.length];
+
+    for (const model of GEMINI_MODELS) {
+      try {
+        const res = await callGemini(key, model, prompt, pdfBase64, 30000, 1);
+        if (res) {
+          const parsed = JSON.parse(res);
+          if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+            return parsed.questions as TestQuestion[];
+          }
         }
+      } catch (err) {
+        console.warn(`Extraction chunk ${startQ}-${endQ} with ${model} on key #${k + 1} failed:`, err);
       }
-    } catch (err) {
-      console.warn(`Extraction for ${subject.name} with ${model} failed, trying next model:`, err);
     }
   }
 
@@ -257,56 +298,184 @@ Return STRICTLY VALID JSON:
 }
 
 /**
- * Helper to call Gemini generateContent with timeout
+ * AI Formatter for a single question statement & options.
+ * Transforms plain text math & units into standard KaTeX notation.
+ */
+async function formatSingleQuestionWithAi(
+  uniqueKeys: string[],
+  q: Partial<TestQuestion>
+): Promise<Partial<TestQuestion>> {
+  const isNumerical = q.type === 'numerical';
+  const prompt = `You are an expert exam question formatter for JEE Main.
+Format this question into clean English with standard KaTeX LaTeX math ($...$).
+Ensure equations, exponents, square roots, fractions, vectors, and units use standard LaTeX ($...$).
+Raw Question Statement:
+${q.questionText || ''}
+
+${!isNumerical && q.options && q.options.length > 0
+  ? `Options:
+${q.options.map((o) => `${o.id}: ${o.text}`).join('\n')}`
+  : ''}
+
+Return STRICTLY VALID JSON:
+{
+  "questionText": string,
+  "options": [
+    { "id": "A", "text": string },
+    { "id": "B", "text": string },
+    { "id": "C", "text": string },
+    { "id": "D", "text": string }
+  ]
+}`;
+
+  for (const key of uniqueKeys) {
+    for (const model of GEMINI_MODELS) {
+      try {
+        const res = await callGemini(key, model, prompt, '', 15000, 0);
+        if (res) {
+          const parsed = JSON.parse(res);
+          return {
+            ...q,
+            questionText: parsed.questionText || q.questionText,
+            options: isNumerical ? [] : (parsed.options || q.options),
+          };
+        }
+      } catch {
+        // try next
+      }
+    }
+  }
+
+  return q;
+}
+
+/**
+ * Cleans raw string from Gemini into valid JSON string
+ */
+function cleanJsonString(text: string): string {
+  let cleaned = text.trim();
+
+  // Strip markdown code fences
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+  cleaned = cleaned.trim();
+
+  // Find first { or [ and last } or ]
+  const firstBrace = cleaned.indexOf('{');
+  const firstBracket = cleaned.indexOf('[');
+  let start = 0;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    start = firstBrace;
+  } else if (firstBracket !== -1) {
+    start = firstBracket;
+  }
+
+  const lastBrace = cleaned.lastIndexOf('}');
+  const lastBracket = cleaned.lastIndexOf(']');
+  let end = cleaned.length;
+  if (lastBrace !== -1 && (lastBracket === -1 || lastBrace > lastBracket)) {
+    end = lastBrace + 1;
+  } else if (lastBracket !== -1) {
+    end = lastBracket + 1;
+  }
+
+  cleaned = cleaned.substring(start, end).trim();
+
+  // Strip trailing commas before closing braces/brackets
+  cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
+
+  return cleaned;
+}
+
+/**
+ * Helper to call Gemini generateContent with timeout & retry on 503/429
  */
 async function callGemini(
   apiKey: string,
   model: string,
   promptText: string,
   pdfBase64: string,
-  timeoutMs: number
+  timeoutMs: number,
+  retries: number = 1
 ): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: 'application/pdf', data: pdfBase64 } },
-            ],
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [
+        { text: promptText },
+      ];
+
+      if (pdfBase64 && pdfBase64.length > 0) {
+        parts.push({
+          inline_data: { mime_type: 'application/pdf', data: pdfBase64 },
+        });
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.1,
           },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.1,
-        },
-      }),
-      signal: controller.signal,
-    });
+        }),
+        signal: controller.signal,
+      });
 
-    const data = await response.json();
-    if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      const rawText = data.candidates[0].content.parts[0].text;
-      return rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const data = await response.json();
+      if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return cleanJsonString(data.candidates[0].content.parts[0].text);
+      }
+
+      const status = response.status;
+      const errorMsg = data.error?.message || `Status ${status}`;
+
+      // If temporary 503 (high demand) or 429 rate limit, retry once with brief backoff
+      if ((status === 503 || status === 429) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1000 + Math.random() * 500));
+        continue;
+      }
+
+      throw new Error(errorMsg);
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
-
-    throw new Error(data.error?.message || `Status ${response.status}`);
-  } finally {
-    clearTimeout(timer);
   }
+
+  return null;
 }
 
 /**
- * Ensures that all questions (1 to totalQuestions, e.g. 75) are present.
- * Uses extracted questions where available, and fills in missing questions with
- * their subject section, question type, and correct answer key from Gemini.
+ * Normalizes option text to remove redundant prefixes like "(A) ", "1. ", etc.
+ */
+function cleanOptionText(raw: string, optId: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+  // Remove leading "(A) ", "(1) ", "A. ", "1. ", "A) ", "1) "
+  cleaned = cleaned.replace(new RegExp(`^\\s*[(]?(?:${optId}|[1-4])[).:-]\\s*`, 'i'), '').trim();
+  return cleaned || raw;
+}
+
+/**
+ * Ensures that all questions (1 to totalQuestions, e.g. 75 or 90) are present and enriched.
  */
 function ensureFullExamQuestions(parsed: ParsedExamData) {
   let subjects: SubjectConfig[] = [];
@@ -372,6 +541,17 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
 
     if (questionMap.has(qNum)) {
       const q = questionMap.get(qNum)!;
+      const opts = isInteger
+        ? []
+        : (Array.isArray(q.options) && q.options.length === 4
+            ? q.options.map((o) => ({ ...o, text: cleanOptionText(o.text, o.id) }))
+            : [
+                { id: 'A', text: 'Option A' },
+                { id: 'B', text: 'Option B' },
+                { id: 'C', text: 'Option C' },
+                { id: 'D', text: 'Option D' },
+              ]);
+
       fullQuestions.push({
         questionNumber: qNum,
         subjectId: q.subjectId || subject.id,
@@ -380,16 +560,7 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
           q.questionText && q.questionText.trim().length > 3
             ? q.questionText
             : `Question ${qNum}`,
-        options: isInteger
-          ? []
-          : (Array.isArray(q.options) && q.options.length === 4
-              ? q.options
-              : [
-                  { id: 'A', text: 'Option A' },
-                  { id: 'B', text: 'Option B' },
-                  { id: 'C', text: 'Option C' },
-                  { id: 'D', text: 'Option D' },
-                ]),
+        options: opts,
         correctAnswer: q.correctAnswer || correct,
         solution: q.solution || '',
       });

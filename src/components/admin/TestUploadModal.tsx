@@ -49,6 +49,8 @@ export function TestUploadModal({
   // Preview tab & filter
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string>('all');
   const [editingQuestionNumber, setEditingQuestionNumber] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [formattingQNum, setFormattingQNum] = useState<number | null>(null);
 
   // Status & error messages
   const [processingStatus, setProcessingStatus] = useState<string>('');
@@ -438,10 +440,44 @@ export function TestUploadModal({
     }
   };
 
-  // Filtered questions for preview
+  // Single question AI auto-formatter
+  const handleFormatSingleQuestionWithAi = async (qNum: number) => {
+    const target = questions.find((q) => q.questionNumber === qNum);
+    if (!target) return;
+    try {
+      setFormattingQNum(qNum);
+      const res = await fetch('/api/admin/gemini/parse-paper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'format-single-question',
+          question: target,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.question) {
+        handleUpdateQuestion(qNum, data.question);
+      }
+    } catch (err) {
+      console.warn('AI question formatting error:', err);
+    } finally {
+      setFormattingQNum(null);
+    }
+  };
+
+  // Filtered questions for preview (subject filter + search query)
   const filteredQuestions = questions.filter((q) => {
-    if (activeSubjectFilter === 'all') return true;
-    return q.subjectId.toLowerCase() === activeSubjectFilter.toLowerCase();
+    if (activeSubjectFilter !== 'all' && q.subjectId.toLowerCase() !== activeSubjectFilter.toLowerCase()) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const qText = (q.questionText || '').toLowerCase();
+      const qNumStr = String(q.questionNumber);
+      const optTexts = (q.options || []).map((o) => o.text.toLowerCase()).join(' ');
+      const query = searchQuery.trim().toLowerCase();
+      return qNumStr === query || qText.includes(query) || optTexts.includes(query);
+    }
+    return true;
   });
 
   return (
@@ -678,31 +714,53 @@ export function TestUploadModal({
               </div>
             </div>
 
-            {/* Subject Filter Pills */}
-            <div className="px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto text-xs shrink-0">
-              <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1">Filter Subject:</span>
-              {['all', 'physics', 'chemistry', 'mathematics'].map((subId) => {
-                const count = subId === 'all'
-                  ? questions.length
-                  : questions.filter((q) => q.subjectId.toLowerCase() === subId).length;
-                const label = subId === 'all' ? 'All Questions' : subId.charAt(0).toUpperCase() + subId.slice(1);
-                const isActive = activeSubjectFilter === subId;
+            {/* Subject Filter Pills & Quick Search */}
+            <div className="px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1">Filter Subject:</span>
+                {['all', 'physics', 'chemistry', 'mathematics'].map((subId) => {
+                  const count = subId === 'all'
+                    ? questions.length
+                    : questions.filter((q) => q.subjectId.toLowerCase() === subId).length;
+                  const label = subId === 'all' ? 'All Questions' : subId.charAt(0).toUpperCase() + subId.slice(1);
+                  const isActive = activeSubjectFilter === subId;
 
-                return (
+                  return (
+                    <button
+                      key={subId}
+                      type="button"
+                      onClick={() => setActiveSubjectFilter(subId)}
+                      className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-700 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Search */}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Search Q# or formula..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                />
+                {searchQuery && (
                   <button
-                    key={subId}
                     type="button"
-                    onClick={() => setActiveSubjectFilter(subId)}
-                    className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-700 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
+                    onClick={() => setSearchQuery('')}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
                   >
-                    {label} ({count})
+                    ✕
                   </button>
-                );
-              })}
+                )}
+              </div>
             </div>
 
             {/* Questions List */}
@@ -850,13 +908,45 @@ export function TestUploadModal({
                             </div>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => setEditingQuestionNumber(null)}
-                            className="px-3 py-1 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer"
-                          >
-                            Done Editing Question
-                          </button>
+                          {/* Live KaTeX Preview Box */}
+                          <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 space-y-1.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block">
+                              Live KaTeX Math &amp; Formula Preview:
+                            </span>
+                            <MathText
+                              content={q.questionText || 'Enter question statement above to preview math...'}
+                              className="text-xs sm:text-sm text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingQuestionNumber(null)}
+                              className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+                            >
+                              ✓ Done Editing
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={formattingQNum === q.questionNumber}
+                              onClick={() => handleFormatSingleQuestionWithAi(q.questionNumber)}
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-2xs"
+                              title="Uses Gemini AI to clean up LaTeX math formatting, equations, and units"
+                            >
+                              {formattingQNum === q.questionNumber ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Formatting Math...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>✨ Auto-Format Math (AI)</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
