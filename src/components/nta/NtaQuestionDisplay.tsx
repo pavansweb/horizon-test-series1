@@ -27,7 +27,12 @@ export function NtaQuestionDisplay({
   pdfStartPage,
   pdfEndPage,
 }: NtaQuestionDisplayProps) {
-  const [showPdfReference, setShowPdfReference] = useState<boolean>(false);
+  const isReferencingPdf = Boolean(
+    question.questionText?.toLowerCase().includes('refer to')
+  );
+  const [userPdfToggle, setUserPdfToggle] = useState<boolean | null>(null);
+  const showPdfReference = userPdfToggle !== null ? userPdfToggle : isReferencingPdf;
+
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
 
   const isInteger = question.type === 'numerical';
@@ -83,7 +88,7 @@ export function NtaQuestionDisplay({
           {pdfUrl && (
             <button
               type="button"
-              onClick={() => setShowPdfReference(!showPdfReference)}
+              onClick={() => setUserPdfToggle(!showPdfReference)}
               className="text-xs font-semibold px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
               title="Toggle original PDF viewer for diagram/formula verification"
             >
@@ -140,7 +145,7 @@ export function NtaQuestionDisplay({
             <span className="font-semibold">Original PDF Paper Reference (for diagrams &amp; verification):</span>
             <button
               type="button"
-              onClick={() => setShowPdfReference(false)}
+              onClick={() => setUserPdfToggle(false)}
               className="text-red-600 dark:text-red-400 font-bold hover:underline cursor-pointer"
             >
               ✕ Close PDF Reference

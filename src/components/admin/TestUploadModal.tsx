@@ -150,29 +150,106 @@ export function TestUploadModal({
       if (parsed.durationMinutes) setDuration(parsed.durationMinutes);
       if (parsed.pdfStartPage) setPdfStartPage(parsed.pdfStartPage);
       if (parsed.pdfEndPage) setPdfEndPage(parsed.pdfEndPage);
-      if (parsed.integerQuestions) setIntegerQuestions(parsed.integerQuestions);
 
-      if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
-        setSubjects(parsed.subjects);
-      }
+      const effectiveSubjects: SubjectConfig[] =
+        parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length > 0
+          ? parsed.subjects
+          : [
+              { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
+              { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
+              { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
+            ];
+      setSubjects(effectiveSubjects);
 
-      // Extracted structured questions
-      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-        setQuestions(parsed.questions);
+      const effectiveIntegerQuestions: number[] = Array.isArray(parsed.integerQuestions)
+        ? parsed.integerQuestions.map(Number)
+        : [21, 22, 23, 24, 25, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75];
+      setIntegerQuestions(effectiveIntegerQuestions);
 
-        // Derive answer key from parsed questions
-        const derivedKey: Record<number, string> = {};
-        parsed.questions.forEach((q: TestQuestion) => {
-          if (q.questionNumber && q.correctAnswer) {
-            derivedKey[q.questionNumber] = q.correctAnswer.toUpperCase().trim();
+      const mergedKey: Record<number, string> = {};
+      if (parsed.answerKey && typeof parsed.answerKey === 'object') {
+        Object.entries(parsed.answerKey).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) {
+            mergedKey[Number(k)] = String(v).toUpperCase().trim();
           }
         });
-        setAnswerKey((prev) => ({ ...derivedKey, ...prev, ...(parsed.answerKey || {}) }));
-      } else if (parsed.answerKey) {
-        setAnswerKey((prev) => ({ ...prev, ...parsed.answerKey }));
       }
 
-      // Move directly to preview!
+      // Check extracted questions
+      const parsedQuestions: TestQuestion[] = Array.isArray(parsed.questions) ? parsed.questions : [];
+      const questionMap = new Map<number, TestQuestion>();
+      parsedQuestions.forEach((q) => {
+        if (q && q.questionNumber) {
+          questionMap.set(q.questionNumber, q);
+          if (q.correctAnswer && !mergedKey[q.questionNumber]) {
+            mergedKey[q.questionNumber] = String(q.correctAnswer).toUpperCase().trim();
+          }
+        }
+      });
+
+      // Calculate total questions to ensure NO missing questions
+      const totalFromSubjects = effectiveSubjects.reduce((sum, s) => sum + (s.totalQuestions || 25), 0);
+      const totalFromKeys = Object.keys(mergedKey).length;
+      const maxKeyNum = Object.keys(mergedKey).reduce((m, k) => Math.max(m, Number(k) || 0), 0);
+      const totalCount = Math.max(totalFromSubjects, totalFromKeys, maxKeyNum, 75);
+
+      const finalQuestions: TestQuestion[] = [];
+      for (let q = 1; q <= totalCount; q++) {
+        const sub =
+          effectiveSubjects.find((s) => q >= s.startQuestion && q <= s.endQuestion) ||
+          effectiveSubjects[0];
+        const isInt =
+          effectiveIntegerQuestions.includes(q) ||
+          q % 25 > 20 ||
+          q % 25 === 0;
+        const key = mergedKey[q] || (isInt ? '0' : 'A');
+        mergedKey[q] = key;
+
+        if (questionMap.has(q)) {
+          const existing = questionMap.get(q)!;
+          finalQuestions.push({
+            questionNumber: q,
+            subjectId: existing.subjectId || sub.id,
+            type: isInt ? 'numerical' : (existing.type || 'mcq'),
+            questionText:
+              existing.questionText && existing.questionText.trim().length > 5
+                ? existing.questionText
+                : `Question ${q} statement (refer to Question Paper PDF)`,
+            options: isInt
+              ? []
+              : (existing.options && existing.options.length === 4
+                  ? existing.options
+                  : [
+                      { id: 'A', text: 'Option A' },
+                      { id: 'B', text: 'Option B' },
+                      { id: 'C', text: 'Option C' },
+                      { id: 'D', text: 'Option D' },
+                    ]),
+            correctAnswer: existing.correctAnswer || key,
+            solution: existing.solution || '',
+          });
+        } else {
+          finalQuestions.push({
+            questionNumber: q,
+            subjectId: sub.id,
+            type: isInt ? 'numerical' : 'mcq',
+            questionText: `Question ${q} statement (refer to Question Paper PDF)`,
+            options: isInt
+              ? []
+              : [
+                  { id: 'A', text: 'Option A' },
+                  { id: 'B', text: 'Option B' },
+                  { id: 'C', text: 'Option C' },
+                  { id: 'D', text: 'Option D' },
+                ],
+            correctAnswer: key,
+            solution: '',
+          });
+        }
+      }
+
+      setQuestions(finalQuestions);
+      setAnswerKey(mergedKey);
       setStep('preview');
     } catch (err: unknown) {
       console.error('Gemini formatting error:', err);

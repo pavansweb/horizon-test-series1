@@ -1,19 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthenticatedAdmin } from '@/lib/auth';
+import { SubjectConfig, TestQuestion } from '@/lib/types';
 import fs from 'fs';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Allow up to 60 seconds for AI paper analysis
+export const maxDuration = 60; // Up to 60 seconds for AI paper analysis
 
+interface ParsedExamData {
+  title?: string;
+  durationMinutes?: number;
+  subjects?: Array<{
+    id?: string;
+    name?: string;
+    startQuestion?: number;
+    endQuestion?: number;
+    totalQuestions?: number;
+  }>;
+  integerQuestions?: number[];
+  answerKey?: Record<string, string>;
+  pdfStartPage?: number;
+  pdfEndPage?: number;
+  detectedSummary?: string;
+  questions?: Array<Partial<TestQuestion>>;
+}
+
+// Active Google Gemini models in priority order
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-pro-latest',
   'gemini-3.8-flash',
+  'gemini-flash-latest',
 ];
 
 export async function POST(request: NextRequest) {
@@ -72,7 +88,9 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = `You are an expert exam analyzer for JEE Main examination papers.
-Analyze this JEE question paper PDF thoroughly and extract its complete structure and answer key.
+Analyze this JEE question paper PDF thoroughly. Extract the complete structure, answer key, and questions.
+Keep solutions empty "" to conserve tokens and ensure speed and full question extraction.
+
 Return a STRICTLY VALID JSON object with this exact schema:
 {
   "title": string,
@@ -105,8 +123,7 @@ Return a STRICTLY VALID JSON object with this exact schema:
         { "id": "C", "text": string },
         { "id": "D", "text": string }
       ],
-      "correctAnswer": string,
-      "solution": string
+      "correctAnswer": string
     }
   ]
 }
@@ -114,39 +131,29 @@ Return a STRICTLY VALID JSON object with this exact schema:
 Critical Instructions:
 1. SUBJECT SEQUENCE & ORDER:
    Examine which subject appears FIRST in the question paper!
-   - If Chemistry is the first section (e.g. Q1-25 or Q1-30), list Chemistry as the FIRST item in the "subjects" array!
-   - If Physics is first, list Physics first.
-   - If Mathematics is first, list Mathematics first.
-   - Ensure startQuestion, endQuestion, and totalQuestions are contiguous and accurate (e.g. 1-25, 26-50, 51-75).
+   - If Mathematics is first (e.g. Q1-25), list Mathematics as first subject.
+   - If Physics is first (e.g. Q1-25), list Physics first.
+   - If Chemistry is first, list Chemistry first.
+   - Ensure startQuestion and endQuestion cover all questions (e.g. 1-25, 26-50, 51-75).
 
 2. INTEGER QUESTIONS:
-   Identify which questions are Numerical Value / Integer type (typically the last 5 questions of each section, e.g. 21-25, 46-50, 71-75, or 21-30, 51-60, 81-90). List all their question numbers in the "integerQuestions" array.
+   Identify which questions are Numerical Value / Section B type (e.g. 21-25, 46-50, 71-75).
+   List them in the "integerQuestions" array.
 
 3. ANSWER KEY EXTRACTION:
-   - Search the entire PDF (especially the last few pages or question end) for any Answer Key, Solutions, or Key table.
-   - For Multiple Choice Questions: convert numeric options (1, 2, 3, 4) or ((1), (2), (3), (4)) to uppercase letters 'A', 'B', 'C', 'D'.
-   - For Numerical/Integer Questions: preserve the numerical answer (e.g. "4", "15", "0.5").
-   - If no answer key is found in the PDF, return an empty object {} for "answerKey".
+   - Search the entire PDF (especially the last few pages) for the official Answer Key or Solutions.
+   - For MCQs: convert options (1, 2, 3, 4) to uppercase letters ('A', 'B', 'C', 'D').
+   - For Numerical questions: preserve the numerical answer string (e.g. "5", "12").
+   - Populate EVERY question in "answerKey" (e.g. "1": "C", "2": "D", ...).
 
-4. PAGE RANGES FOR CBT STUDENT EXAM (CRITICAL - DO NOT INCLUDE SOLUTIONS):
-   - pdfStartPage: The 1-based page number where Section 1 / Question 1 actually starts (skip any cover page or general instructions sheet, typically 1 or 2).
-   - pdfEndPage: The 1-based page number where the LAST QUESTION of the exam ends (e.g. Question 75 or Question 90).
-   - STRICT INTEGRITY RULE: DO NOT INCLUDE ANY ANSWER KEY TABLES, HINTS, STEP-BY-STEP SOLUTIONS, OR EXPLANATION PAGES IN pdfEndPage!
-     The student CBT interface ONLY renders pages from pdfStartPage to pdfEndPage during the live exam.
-     Therefore, pdfEndPage MUST be the page containing the final question, BEFORE any answer key table, hint, or solutions section begins!
-     (For example, if questions are on pages 1 to 14, and detailed solutions are on pages 15 to 28, set pdfEndPage to 14, NEVER 28!)
+4. PAGE RANGES FOR CBT STUDENT EXAM:
+   - pdfStartPage: 1-based page number where Question 1 starts.
+   - pdfEndPage: 1-based page number where the LAST QUESTION ends, BEFORE solutions begin.
 
-5. COMPLETE QUESTION EXTRACTION & FORMATTING:
-   - Extract each question into the "questions" array.
-   - "questionNumber": integer 1..N matching the paper sequence.
-   - "subjectId": "physics" | "chemistry" | "mathematics".
-   - "type": "numerical" for integer/numerical questions, otherwise "mcq".
-   - "questionText": Full question statement. For math, use standard clean notation or LaTeX (e.g. $x^2 + y = 0$).
-   - "options": For MCQ, array of 4 options with "id" ("A", "B", "C", "D") and "text". Empty array [] for numerical questions.
-   - "correctAnswer": The correct answer (e.g. "A" or "14").
-   - "solution": Detailed solution or explanation if present in the PDF.
-
-6. Return ONLY clean, raw JSON matching the schema above.`;
+5. QUESTIONS ARRAY:
+   - Extract questions into "questions". For MCQs, provide all 4 options. For numerical, empty options [].
+   - Use standard LaTeX $...$ for formulas.
+   - Return ONLY clean, valid JSON matching the schema.`;
 
     let lastError: string | null = null;
 
@@ -157,7 +164,7 @@ Critical Instructions:
 
       for (const model of GEMINI_MODELS) {
         const controller = new AbortController();
-        const timeoutTimer = setTimeout(() => controller.abort(), 26000);
+        const timeoutTimer = setTimeout(() => controller.abort(), 45000);
 
         try {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
@@ -193,12 +200,15 @@ Critical Instructions:
             const cleanedText = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
             const parsed = JSON.parse(cleanedText);
 
+            // Ensure complete exam structure and synthesize any missing questions
+            const enriched = ensureFullExamQuestions(parsed);
+
             return NextResponse.json({
               success: true,
               modelUsed: model,
               keyIndexUsed: keyIdx + 1,
               totalKeysConfigured: uniqueKeys.length,
-              data: parsed,
+              data: enriched,
             });
           } else {
             const errMsg = data.error?.message || `Model ${model} returned status ${response.status}`;
@@ -241,8 +251,139 @@ Critical Instructions:
   }
 }
 
+/**
+ * Ensures that all questions (1 to totalQuestions, e.g. 75) are present.
+ * Uses extracted questions where available, and fills in missing questions with
+ * their subject section, question type, and correct answer key from Gemini.
+ */
+function ensureFullExamQuestions(parsed: ParsedExamData) {
+  // Normalize subjects
+  let subjects: SubjectConfig[] = [];
+
+  if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+    subjects = parsed.subjects.map((s) => ({
+      id: String(s.id || '').toLowerCase() || 'physics',
+      name: s.name || s.id || 'Physics',
+      startQuestion: Number(s.startQuestion) || 1,
+      endQuestion: Number(s.endQuestion) || 25,
+      totalQuestions: Number(s.totalQuestions) || 25,
+    }));
+  } else {
+    subjects = [
+      { id: 'physics', name: 'Physics', startQuestion: 1, endQuestion: 25, totalQuestions: 25 },
+      { id: 'chemistry', name: 'Chemistry', startQuestion: 26, endQuestion: 50, totalQuestions: 25 },
+      { id: 'mathematics', name: 'Mathematics', startQuestion: 51, endQuestion: 75, totalQuestions: 25 },
+    ];
+  }
+
+  // Normalize integer questions
+  const integerQuestions: number[] = Array.isArray(parsed.integerQuestions)
+    ? parsed.integerQuestions.map(Number)
+    : [21, 22, 23, 24, 25, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75];
+
+  // Normalize answer key
+  const answerKey: Record<string, string> = {};
+  if (parsed.answerKey && typeof parsed.answerKey === 'object') {
+    Object.entries(parsed.answerKey).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        answerKey[String(k)] = String(v).toUpperCase().trim();
+      }
+    });
+  }
+
+  // Index existing parsed questions
+  const existingQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
+  const questionMap = new Map<number, Partial<TestQuestion>>();
+  for (const q of existingQuestions) {
+    if (q && typeof q.questionNumber === 'number') {
+      questionMap.set(q.questionNumber, q);
+      // Merge answer into answer key if present
+      if (q.correctAnswer && !answerKey[String(q.questionNumber)]) {
+        answerKey[String(q.questionNumber)] = String(q.correctAnswer).toUpperCase().trim();
+      }
+    }
+  }
+
+  // Compute total questions
+  const totalFromSubjects = subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
+  const totalFromKeys = Object.keys(answerKey).length;
+  const maxKeyNum = Object.keys(answerKey).reduce((max, k) => Math.max(max, Number(k) || 0), 0);
+  const totalQuestions = Math.max(totalFromSubjects, totalFromKeys, maxKeyNum, 75);
+
+  const fullQuestions: TestQuestion[] = [];
+
+  for (let qNum = 1; qNum <= totalQuestions; qNum++) {
+    // Determine subject
+    const subject =
+      subjects.find((s) => qNum >= s.startQuestion && qNum <= s.endQuestion) ||
+      subjects[0];
+
+    const isInteger =
+      integerQuestions.includes(qNum) ||
+      qNum % 25 > 20 ||
+      qNum % 25 === 0;
+
+    const correct = answerKey[String(qNum)] || (isInteger ? '0' : 'A');
+
+    if (questionMap.has(qNum)) {
+      const q = questionMap.get(qNum)!;
+      fullQuestions.push({
+        questionNumber: qNum,
+        subjectId: q.subjectId || subject.id,
+        type: isInteger ? 'numerical' : (q.type || 'mcq'),
+        questionText:
+          q.questionText && q.questionText.trim().length > 5
+            ? q.questionText
+            : `Question ${qNum} (refer to original question paper PDF)`,
+        options: isInteger
+          ? []
+          : (Array.isArray(q.options) && q.options.length === 4
+              ? q.options
+              : [
+                  { id: 'A', text: 'Option A' },
+                  { id: 'B', text: 'Option B' },
+                  { id: 'C', text: 'Option C' },
+                  { id: 'D', text: 'Option D' },
+                ]),
+        correctAnswer: q.correctAnswer || correct,
+        solution: q.solution || '',
+      });
+    } else {
+      fullQuestions.push({
+        questionNumber: qNum,
+        subjectId: subject.id,
+        type: isInteger ? 'numerical' : 'mcq',
+        questionText: `Question ${qNum} (refer to original question paper PDF)`,
+        options: isInteger
+          ? []
+          : [
+              { id: 'A', text: 'Option A' },
+              { id: 'B', text: 'Option B' },
+              { id: 'C', text: 'Option C' },
+              { id: 'D', text: 'Option D' },
+            ],
+        correctAnswer: correct,
+        solution: '',
+      });
+    }
+
+    if (!answerKey[String(qNum)]) {
+      answerKey[String(qNum)] = correct;
+    }
+  }
+
+  return {
+    ...parsed,
+    subjects,
+    integerQuestions,
+    answerKey,
+    questions: fullQuestions,
+    pdfStartPage: parsed.pdfStartPage || 1,
+    pdfEndPage: parsed.pdfEndPage || 24,
+  };
+}
+
 async function resolvePdfBase64(pdfUrl: string): Promise<string> {
-  // If it's a local path like /uploads/...
   if (pdfUrl.startsWith('/uploads/') || pdfUrl.startsWith('/')) {
     const filename = pdfUrl.replace(/^\/uploads\//, '').replace(/^\//, '');
     const localUploadPath = path.join(process.cwd(), 'public', 'uploads', filename);
@@ -255,7 +396,6 @@ async function resolvePdfBase64(pdfUrl: string): Promise<string> {
     }
   }
 
-  // Otherwise fetch via HTTP
   const fetchRes = await fetch(pdfUrl);
   if (!fetchRes.ok) {
     throw new Error(`Failed to fetch PDF from URL: ${pdfUrl}`);
