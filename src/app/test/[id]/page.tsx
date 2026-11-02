@@ -324,7 +324,7 @@ export default function TestAttemptPage({
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
         <h2 className="text-base font-bold mb-1">Loading Examination...</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Preparing HORIZON TEST SERIES environment
+          Preparing CBT examination environment...
         </p>
       </div>
     );

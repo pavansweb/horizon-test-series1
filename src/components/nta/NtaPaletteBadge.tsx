@@ -124,10 +124,14 @@ export function NtaLegendBadge({
   status,
   label,
   count,
+  isSelected = false,
+  onClick,
 }: {
   status: QuestionStatus;
   label: string;
   count?: number;
+  isSelected?: boolean;
+  onClick?: () => void;
 }) {
   let bgColor = '#e2e8f0';
   let clipPath = 'none';
@@ -167,8 +171,14 @@ export function NtaLegendBadge({
       break;
   }
 
-  return (
-    <div className="flex items-center gap-2">
+  const content = (
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-2 px-1.5 py-1 rounded transition-colors ${
+        onClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/60' : ''
+      } ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50/70 dark:bg-blue-950/40 font-bold' : ''}`}
+      title={onClick ? `Filter questions by ${label}` : undefined}
+    >
       <div
         style={{
           position: 'relative',
@@ -208,4 +218,6 @@ export function NtaLegendBadge({
       </span>
     </div>
   );
+
+  return content;
 }

@@ -93,7 +93,18 @@ async function saveTestLocally(test: Test): Promise<void> {
     } else {
       tests.unshift(test);
     }
-    await fs.writeFile(TESTS_FILE, JSON.stringify(tests, null, 2), 'utf-8');
+    const serialized = JSON.stringify(tests, null, 2);
+    await fs.writeFile(TESTS_FILE, serialized, 'utf-8');
+
+    // Also persist to bundled data/tests.json in workspace so it persists across git commits
+    const bundledPath = path.join(process.cwd(), 'data', 'tests.json');
+    if (bundledPath !== TESTS_FILE) {
+      try {
+        await fs.writeFile(bundledPath, serialized, 'utf-8');
+      } catch {
+        // ignore
+      }
+    }
   } catch (err) {
     console.warn('Local test cache save skipped (non-fatal):', err);
   }
@@ -173,31 +184,46 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
 }
 
 /**
- * Reads all tests from storage (Supabase or Local JSON)
+ * Reads all tests from storage (merges Supabase and Local JSON seamlessly)
  */
 export async function getAllTests(includeDrafts: boolean = false): Promise<Test[]> {
-  // If Supabase configured:
+  const testMap = new Map<string, Test>();
+
+  // 1. Populate from local files
+  const localTests = await getLocalTests(true);
+  for (const t of localTests) {
+    testMap.set(t.id, hydrateTest(t));
+  }
+
+  // 2. Overlay / merge any tests from Supabase
   if (isSupabaseConfigured && supabase) {
     try {
-      let query = supabase.from('jee_tests').select('*').order('createdAt', { ascending: false });
-      if (!includeDrafts) {
-        query = query.eq('status', 'published');
-      }
+      const { data, error } = await supabase
+        .from('jee_tests')
+        .select('*')
+        .order('createdAt', { ascending: false });
 
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        return (data as unknown as DbRow[]).map(hydrateTest);
-      }
-      if (error) {
-        console.warn('Supabase DB fetch error, falling back to local file:', error.message);
+      if (!error && Array.isArray(data)) {
+        for (const row of data) {
+          const hydrated = hydrateTest(row as DbRow);
+          testMap.set(hydrated.id, hydrated);
+        }
+      } else if (error) {
+        console.warn('Supabase DB fetch error:', error.message);
       }
     } catch (err) {
-      console.warn('Supabase DB fetch error, falling back to local file:', err);
+      console.warn('Supabase DB fetch exception:', err);
     }
   }
 
-  // Local file storage fallback
-  return (await getLocalTests(includeDrafts)).map(hydrateTest);
+  const all = Array.from(testMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  if (includeDrafts) {
+    return all;
+  }
+  return all.filter((t) => t.status === 'published');
 }
 
 /**

@@ -110,7 +110,7 @@ export function NtaHeader({
           <div>
             <h1
               style={{
-                fontSize: '22px',
+                fontSize: '20px',
                 fontWeight: 800,
                 color: isDark ? '#60a5fa' : '#244874',
                 letterSpacing: '0.8px',
@@ -120,11 +120,11 @@ export function NtaHeader({
                 textTransform: 'uppercase',
               }}
             >
-              HORIZON TEST SERIES
+              JEE (MAIN) EXAMINATION
             </h1>
             <div
               style={{
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 600,
                 color: isDark ? '#94a3b8' : '#476282',
                 letterSpacing: '0.4px',
@@ -133,7 +133,7 @@ export function NtaHeader({
                 fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
               }}
             >
-              (HORIZON ONLINE ENTRANCE TRAINING INSTITUTE)
+              COMPUTER BASED TEST (CBT) SIMULATION
             </div>
           </div>
         </div>

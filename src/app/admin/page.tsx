@@ -264,10 +264,10 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <h1 className="font-extrabold text-base sm:text-lg leading-tight text-white">
-                HORIZON TEST SERIES • Admin Portal
+                JEE (Main) CBT • Admin Portal
               </h1>
               <p className="text-[11px] text-blue-200 dark:text-slate-400">
-                AI Question Paper Formatter &amp; Performance Analytics
+                Examination Management &amp; Analytics
               </p>
             </div>
           </div>

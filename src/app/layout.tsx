@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'HORIZON TEST SERIES - JEE (Main) CBT Mock Portal',
-  description: 'Official NTA JEE Main Computer Based Test Simulation Platform with AI Paper Formatting & Performance Analytics',
+  title: 'JEE (Main) Mock Test Portal • CBT Simulation',
+  description: 'Computer Based Test (CBT) Mock Examination Portal for JEE Main Aspirants',
 };
 
 export default function RootLayout({

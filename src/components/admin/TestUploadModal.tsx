@@ -494,7 +494,7 @@ export function TestUploadModal({
             </div>
             <div>
               <h2 className="font-extrabold text-sm sm:text-base leading-tight">
-                {isEditing ? 'Edit Test Paper & Questions' : 'Upload & AI-Format Question Paper'}
+                {isEditing ? 'Edit Test Paper' : 'Upload & Format Question Paper'}
               </h2>
               <p className="text-[11px] text-blue-200 dark:text-slate-400">
                 {step === 'upload' && 'Step 1: Upload Question Paper PDF'}
@@ -1008,7 +1008,22 @@ export function TestUploadModal({
                 ← Back / Re-upload PDF
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="font-bold text-slate-600 dark:text-slate-400">Status:</span>
+                  <button
+                    type="button"
+                    onClick={() => setStatus((prev) => (prev === 'published' ? 'draft' : 'published'))}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                      status === 'published'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                    }`}
+                  >
+                    {status === 'published' ? '● Published' : '○ Draft'}
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={onClose}
@@ -1029,7 +1044,7 @@ export function TestUploadModal({
                       <span>Saving Paper...</span>
                     </>
                   ) : (
-                    <span>🚀 {isEditing ? 'Save Changes' : 'Publish Test Series Paper'}</span>
+                    <span>{isEditing ? 'Save Changes' : 'Publish Test Paper'}</span>
                   )}
                 </button>
               </div>
