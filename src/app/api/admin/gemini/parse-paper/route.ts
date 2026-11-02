@@ -87,6 +87,24 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json({ success: true, questions });
       }
+
+      // Action 3: Extract single question from PDF on-demand
+      if (body.action === 'extract-single-from-pdf') {
+        let pdfBase64 = body.pdfBase64 || '';
+        if (!pdfBase64 && body.pdfUrl) {
+          pdfBase64 = await resolvePdfBase64(body.pdfUrl);
+        }
+        if (!pdfBase64) {
+          return NextResponse.json({ success: false, error: 'No PDF provided for extraction' }, { status: 400 });
+        }
+        const question = await extractSingleQuestionFromPdf(
+          uniqueKeys,
+          pdfBase64,
+          Number(body.questionNumber),
+          body.subjectId || 'physics'
+        );
+        return NextResponse.json({ success: true, question });
+      }
     }
 
     let pdfBase64 = '';
@@ -322,7 +340,7 @@ Return STRICTLY VALID JSON:
 
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 10000, 0);
+        const res = await callGemini(key, model, prompt, pdfBase64, 14000, 0);
         if (res) {
           const parsed = JSON.parse(res);
           if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
@@ -336,6 +354,61 @@ Return STRICTLY VALID JSON:
   }
 
   return [];
+}
+
+/**
+ * Extracts a single question from PDF on-demand with KaTeX math.
+ */
+async function extractSingleQuestionFromPdf(
+  uniqueKeys: string[],
+  pdfBase64: string,
+  questionNumber: number,
+  subjectId: string
+): Promise<Partial<TestQuestion> | null> {
+  const prompt = `You are an expert exam analyzer for JEE Main examination papers.
+Analyze this JEE question paper PDF. Extract ONLY Question ${questionNumber}.
+
+CRITICAL REQUIREMENTS:
+1. ONLY ENGLISH: Extract ONLY the English question statement and English options. Completely IGNORE Hindi translation!
+2. Extract the complete, exact question statement and option text.
+3. If MCQ, return 4 options (A, B, C, D) with their exact text. Strip redundant prefixes like "(A)" or "1.".
+4. If numerical/integer, options must be empty [].
+5. LATEX FORMULAS: Convert all math, units, and chemistry formulas to standard LaTeX ($...$).
+   - Examples: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$, $\\text{m/s}^2$, $10^{-8}\\text{ T}$, $\\vec{A}$, $\\mathrm{H_2SO_4}$.
+
+Return STRICTLY VALID JSON:
+{
+  "questionNumber": ${questionNumber},
+  "subjectId": "${(subjectId || 'physics').toLowerCase()}",
+  "type": "mcq",
+  "questionText": string,
+  "options": [
+    { "id": "A", "text": string },
+    { "id": "B", "text": string },
+    { "id": "C", "text": string },
+    { "id": "D", "text": string }
+  ],
+  "correctAnswer": string
+}`;
+
+  for (let k = 0; k < uniqueKeys.length; k++) {
+    const key = uniqueKeys[k];
+    for (const model of GEMINI_MODELS) {
+      try {
+        const res = await callGemini(key, model, prompt, pdfBase64, 13000, 0);
+        if (res) {
+          const parsed = JSON.parse(res);
+          if (parsed && parsed.questionText) {
+            return parsed as Partial<TestQuestion>;
+          }
+        }
+      } catch (err) {
+        console.warn(`Single Q${questionNumber} extraction with ${model} on key #${k + 1} failed:`, err);
+      }
+    }
+  }
+
+  return null;
 }
 
 /**

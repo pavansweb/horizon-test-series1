@@ -57,6 +57,17 @@ export function TestUploadModal({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Progressive extraction state
+  const [currentPdfUrl, setCurrentPdfUrl] = useState<string>('');
+  const [extractionProgress, setExtractionProgress] = useState<{
+    currentChunk: number;
+    totalChunks: number;
+    sectionName: string;
+    extractedCount: number;
+  } | null>(null);
+  const cancelExtractionRef = useRef<boolean>(false);
+  const [isExtractingSingle, setIsExtractingSingle] = useState<number | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize when opening
@@ -74,6 +85,7 @@ export function TestUploadModal({
       setMarkingCorrect(testToEdit.markingScheme?.correct ?? 4);
       setMarkingIncorrect(testToEdit.markingScheme?.incorrect ?? -1);
       setMarkingUnattempted(testToEdit.markingScheme?.unattempted ?? 0);
+      setCurrentPdfUrl(testToEdit.pdfUrl || '');
       setStep('preview');
     } else {
       setTitle('JEE Main 2026 Mock Test - Paper 1');
@@ -88,10 +100,12 @@ export function TestUploadModal({
       setMarkingCorrect(4);
       setMarkingIncorrect(-1);
       setMarkingUnattempted(0);
+      setCurrentPdfUrl('');
       setStep('upload');
     }
     setError(null);
     setEditingQuestionNumber(null);
+    setExtractionProgress(null);
   }, [testToEdit, isOpen]);
 
   if (!isOpen) return null;
@@ -164,6 +178,7 @@ export function TestUploadModal({
       const parsed = result.data;
       if (result.pdfUrl) {
         workingPdfUrl = result.pdfUrl;
+        setCurrentPdfUrl(result.pdfUrl);
       }
 
       if (parsed.title) setTitle(parsed.title);
@@ -195,8 +210,8 @@ export function TestUploadModal({
         });
       }
 
-      // Phase 2: Extract question statements & LaTeX formulas in parallel batches
-      setProcessingStatus('Exam structure & answer key detected. Extracting question statements & formulas...');
+      // Phase 2: Sequential extraction of question statements & LaTeX formulas
+      setProcessingStatus('Exam structure & answer key detected. Starting sequential section extraction...');
 
       const chunksToExtract: Array<{
         subject: SubjectConfig;
@@ -220,7 +235,25 @@ export function TestUploadModal({
       const questionMap = new Map<number, TestQuestion>();
 
       if (workingPdfUrl) {
-        const chunkPromises = chunksToExtract.map(async (c) => {
+        cancelExtractionRef.current = false;
+        const totalChunks = chunksToExtract.length;
+
+        for (let i = 0; i < totalChunks; i++) {
+          if (cancelExtractionRef.current) {
+            console.log('Admin cancelled remaining chunk extraction.');
+            break;
+          }
+
+          const c = chunksToExtract[i];
+          const sectionLabel = `${c.subject.name} (Q${c.start}–${c.end})`;
+          setExtractionProgress({
+            currentChunk: i + 1,
+            totalChunks,
+            sectionName: sectionLabel,
+            extractedCount: questionMap.size,
+          });
+          setProcessingStatus(`Extracting ${sectionLabel}... (${i + 1} of ${totalChunks})`);
+
           try {
             const cRes = await fetch('/api/admin/gemini/parse-paper', {
               method: 'POST',
@@ -235,8 +268,14 @@ export function TestUploadModal({
               }),
             });
             const cText = await cRes.text();
-            const cData = JSON.parse(cText);
-            if (cData.success && Array.isArray(cData.questions)) {
+            let cData;
+            try {
+              cData = JSON.parse(cText);
+            } catch {
+              console.warn(`Chunk ${c.start}-${c.end} returned invalid JSON:`, cText.slice(0, 100));
+            }
+
+            if (cData && cData.success && Array.isArray(cData.questions)) {
               cData.questions.forEach((q: TestQuestion) => {
                 if (q && q.questionNumber) {
                   questionMap.set(q.questionNumber, q);
@@ -250,9 +289,7 @@ export function TestUploadModal({
           } catch (cErr) {
             console.warn(`Chunk ${c.start}-${c.end} extraction skipped:`, cErr);
           }
-        });
-
-        await Promise.all(chunkPromises);
+        }
       }
 
       // Calculate total questions to ensure NO missing questions
@@ -323,6 +360,142 @@ export function TestUploadModal({
       console.error('Gemini formatting error:', err);
       setError((err as Error)?.message || 'AI auto-formatting failed. Please try again.');
       setStep('upload');
+    }
+  };
+
+  // Re-extract a single question on demand from the uploaded PDF
+  const handleExtractSingleQuestionFromPdf = async (qNum: number, subId: string) => {
+    const pdfUrl = currentPdfUrl || testToEdit?.pdfUrl;
+    if (!pdfUrl) {
+      setError('No PDF available to extract question. Please ensure PDF was uploaded.');
+      return;
+    }
+
+    try {
+      setIsExtractingSingle(qNum);
+      const res = await fetch('/api/admin/gemini/parse-paper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'extract-single-from-pdf',
+          pdfUrl,
+          questionNumber: qNum,
+          subjectId: subId,
+        }),
+      });
+
+      const text = await res.text();
+      const data = JSON.parse(text);
+
+      if (data.success && data.question) {
+        handleUpdateQuestion(qNum, data.question);
+      } else {
+        setError(`Failed to extract Question ${qNum} from PDF.`);
+      }
+    } catch (err) {
+      console.error(`Error extracting Q${qNum}:`, err);
+      setError(`Error extracting Question ${qNum}.`);
+    } finally {
+      setIsExtractingSingle(null);
+    }
+  };
+
+  // Re-extract remaining placeholders in sequential chunks
+  const handleExtractRemainingPlaceholders = async () => {
+    const pdfUrl = currentPdfUrl || testToEdit?.pdfUrl;
+    if (!pdfUrl) {
+      setError('No PDF available to extract remaining questions.');
+      return;
+    }
+
+    const placeholderQuestions = questions.filter(
+      (q) => !q.questionText || q.questionText.toLowerCase().includes('refer to')
+    );
+
+    if (placeholderQuestions.length === 0) return;
+
+    try {
+      setStep('processing');
+      setError(null);
+      cancelExtractionRef.current = false;
+
+      const missingQNums = new Set(placeholderQuestions.map((q) => q.questionNumber));
+      const chunksToRun: Array<{ subject: SubjectConfig; start: number; end: number; chunkIndex: number }> = [];
+
+      let idx = 0;
+      for (const subj of subjects) {
+        const total = subj.endQuestion - subj.startQuestion + 1;
+        const subChunks =
+          total > 15
+            ? [
+                { start: subj.startQuestion, end: subj.startQuestion + Math.floor(total / 2) - 1 },
+                { start: subj.startQuestion + Math.floor(total / 2), end: subj.endQuestion },
+              ]
+            : [{ start: subj.startQuestion, end: subj.endQuestion }];
+
+        for (const sc of subChunks) {
+          let hasMissing = false;
+          for (let q = sc.start; q <= sc.end; q++) {
+            if (missingQNums.has(q)) {
+              hasMissing = true;
+              break;
+            }
+          }
+          if (hasMissing) {
+            chunksToRun.push({ subject: subj, start: sc.start, end: sc.end, chunkIndex: idx++ });
+          }
+        }
+      }
+
+      const totalChunks = chunksToRun.length;
+      for (let i = 0; i < totalChunks; i++) {
+        if (cancelExtractionRef.current) break;
+
+        const c = chunksToRun[i];
+        const sectionLabel = `${c.subject.name} (Q${c.start}–${c.end})`;
+        setExtractionProgress({
+          currentChunk: i + 1,
+          totalChunks,
+          sectionName: sectionLabel,
+          extractedCount: 0,
+        });
+        setProcessingStatus(`Extracting ${sectionLabel}... (${i + 1} of ${totalChunks})`);
+
+        try {
+          const cRes = await fetch('/api/admin/gemini/parse-paper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'extract-chunk',
+              pdfUrl,
+              subject: c.subject,
+              startQuestion: c.start,
+              endQuestion: c.end,
+              chunkIndex: c.chunkIndex,
+            }),
+          });
+          const cData = await cRes.json();
+          if (cData.success && Array.isArray(cData.questions)) {
+            setQuestions((prev) =>
+              prev.map((q) => {
+                const found = cData.questions.find((x: TestQuestion) => x.questionNumber === q.questionNumber);
+                if (found && found.questionText && found.questionText.trim().length > 3) {
+                  return { ...q, ...found };
+                }
+                return q;
+              })
+            );
+          }
+        } catch (e) {
+          console.warn(`Extraction chunk ${c.start}-${c.end} skipped:`, e);
+        }
+      }
+
+      setStep('preview');
+    } catch (err: unknown) {
+      console.error('Error re-extracting:', err);
+      setError('Re-extraction was interrupted.');
+      setStep('preview');
     }
   };
 
@@ -713,18 +886,61 @@ export function TestUploadModal({
         {/* STEP 2: AI PROCESSING / LOADING                                           */}
         {/* ========================================================================= */}
         {step === 'processing' && (
-          <div className="p-16 flex flex-col items-center justify-center text-center space-y-4 flex-1">
-            <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-            <div className="space-y-1.5 max-w-md">
+          <div className="p-10 sm:p-14 flex flex-col items-center justify-center text-center space-y-5 flex-1 max-w-xl mx-auto w-full">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-black text-blue-700 dark:text-blue-400">
+                {extractionProgress
+                  ? `${Math.round(((extractionProgress.currentChunk - 1) / extractionProgress.totalChunks) * 100)}%`
+                  : '✨'}
+              </div>
+            </div>
+
+            <div className="space-y-2 w-full">
               <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
-                ✨ Formatting Question Paper with Gemini AI
+                Formatting Question Paper with Gemini AI
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-semibold">
                 {processingStatus}
               </p>
+
+              {extractionProgress && (
+                <div className="space-y-1.5 pt-2 text-left">
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.max(
+                          8,
+                          Math.round((extractionProgress.currentChunk / extractionProgress.totalChunks) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                    <span>{extractionProgress.sectionName}</span>
+                    <span>
+                      Batch {extractionProgress.currentChunk} of {extractionProgress.totalChunks}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg text-xs text-blue-800 dark:text-blue-300 max-w-sm">
-              Extracting Physics, Chemistry &amp; Mathematics sections, mathematical equations, option choices, and answer keys.
+
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  cancelExtractionRef.current = true;
+                  setProcessingStatus('Finalizing extracted questions and switching to preview...');
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                Skip remaining &amp; preview now →
+              </button>
+              <p className="text-[11px] text-slate-400">
+                Batches are extracted sequentially to guarantee high quality and prevent timeouts.
+              </p>
             </div>
           </div>
         )}
@@ -756,6 +972,15 @@ export function TestUploadModal({
               </div>
 
               <div className="flex items-center gap-2">
+                {questions.some((q) => !q.questionText || q.questionText.toLowerCase().includes('refer to')) && (
+                  <button
+                    type="button"
+                    onClick={handleExtractRemainingPlaceholders}
+                    className="px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all"
+                  >
+                    <span>✨ Auto-Extract Remaining Questions</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleAddQuestion}
@@ -850,6 +1075,29 @@ export function TestUploadModal({
                           <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                             Key: {q.correctAnswer ? `(${q.correctAnswer})` : 'Not Set'}
                           </span>
+
+                          {/* Re-extract single question from PDF */}
+                          {(currentPdfUrl || testToEdit?.pdfUrl) && (
+                            <button
+                              type="button"
+                              onClick={() => handleExtractSingleQuestionFromPdf(q.questionNumber, q.subjectId)}
+                              disabled={isExtractingSingle === q.questionNumber}
+                              className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900 cursor-pointer disabled:opacity-40 flex items-center gap-1"
+                              title="Re-extract this question statement and options from PDF with Gemini"
+                            >
+                              {isExtractingSingle === q.questionNumber ? (
+                                <>
+                                  <span className="w-2.5 h-2.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin inline-block" />
+                                  <span>Extracting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>✨</span>
+                                  <span>Extract</span>
+                                </>
+                              )}
+                            </button>
+                          )}
 
                           <button
                             type="button"
