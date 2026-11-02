@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Test, TestResult } from '@/lib/types';
-import { TestFormModal } from '@/components/admin/TestFormModal';
-import { ReplacePdfModal } from '@/components/admin/ReplacePdfModal';
+import { TestUploadModal } from '@/components/admin/TestUploadModal';
 import {
   PlusIcon,
   EditIcon,
@@ -41,10 +40,9 @@ export default function AdminDashboardPage() {
   const [submissionSearch, setSubmissionSearch] = useState<string>('');
   const [submissionTestFilter, setSubmissionTestFilter] = useState<string>('all');
 
-  // Modals state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  // Upload/Edit Modal state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [testToEdit, setTestToEdit] = useState<Test | null>(null);
-  const [testForPdfReplace, setTestForPdfReplace] = useState<Test | null>(null);
 
   // Theme state (Dark Mode)
   const [isDark, setIsDark] = useState<boolean>(false);
@@ -257,7 +255,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans pb-12 transition-colors">
-      {/* Top Navigation */}
+      {/* Top Header */}
       <header className="bg-[#1e3a8a] dark:bg-slate-900 text-white border-b border-blue-900 dark:border-slate-800 shadow-sm py-3 px-4 sm:px-6 transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -269,7 +267,7 @@ export default function AdminDashboardPage() {
                 HORIZON TEST SERIES • Admin Portal
               </h1>
               <p className="text-[11px] text-blue-200 dark:text-slate-400">
-                AI Question Paper Formatter &amp; Student Performance Analytics
+                AI Question Paper Formatter &amp; Performance Analytics
               </p>
             </div>
           </div>
@@ -319,7 +317,7 @@ export default function AdminDashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* Navigation Tabs (Test Papers vs Student Performances) */}
+        {/* Navigation Tabs */}
         <div className="flex items-center gap-3 border-b border-gray-300 dark:border-slate-800 pb-2">
           <button
             type="button"
@@ -360,23 +358,25 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: TEST PAPERS MANAGEMENT                                             */}
+        {/* TAB 1: SIMPLE, MODERN TEST PAPERS SECTION                                 */}
         {/* ========================================================================= */}
         {activeTab === 'tests' && (
           <div className="space-y-6">
-            {/* Actions Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs transition-colors">
+            {/* Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-xs transition-colors">
               <div>
-                <h2 className="font-bold text-lg text-gray-900 dark:text-slate-100">Configured Question Papers</h2>
+                <h2 className="font-extrabold text-lg text-gray-900 dark:text-slate-100">
+                  Question Papers &amp; Test Series
+                </h2>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Upload PDF question papers and let Gemini AI extract questions, subjects, and answer keys.
+                  Upload PDF question papers, auto-format with Gemini AI, and publish to the mock portal.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => fetchTests()}
-                  className="p-2 border border-gray-300 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors"
+                  className="p-2 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors"
                   title="Refresh test papers list"
                 >
                   <RefreshCwIcon className="w-4 h-4" />
@@ -385,12 +385,12 @@ export default function AdminDashboardPage() {
                 <button
                   onClick={() => {
                     setTestToEdit(null);
-                    setIsCreateModalOpen(true);
+                    setIsUploadModalOpen(true);
                   }}
-                  className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm rounded shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-800 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-lg shadow-sm flex items-center gap-2 cursor-pointer transition-all"
                 >
                   <PlusIcon className="w-4 h-4" />
-                  <span>Upload Paper with Gemini AI</span>
+                  <span>Upload Paper (AI Auto-Format)</span>
                 </button>
               </div>
             </div>
@@ -403,169 +403,133 @@ export default function AdminDashboardPage() {
 
             {/* Loading State */}
             {loadingTests ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
                 <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <span className="text-sm text-gray-600 dark:text-slate-300 font-medium">Loading test papers...</span>
               </div>
             ) : tests.length === 0 ? (
               /* Empty State */
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-dashed border-gray-300 dark:border-slate-800 space-y-3">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-gray-300 dark:border-slate-800 space-y-3">
                 <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
                   <UploadIcon className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-base text-gray-800 dark:text-slate-200">No JEE Mock Tests Uploaded Yet</h3>
+                <h3 className="font-bold text-base text-gray-800 dark:text-slate-200">No Test Papers Yet</h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 max-w-md mx-auto">
-                  Upload any JEE Main question paper PDF. Horizon AI / Gemini will auto-format the questions, extract the answer key, and prepare the CBT interface immediately.
+                  Upload any JEE Main question paper PDF. Gemini AI will break it down into questions, extract LaTeX math, and prepare the CBT interface.
                 </p>
                 <button
                   onClick={() => {
                     setTestToEdit(null);
-                    setIsCreateModalOpen(true);
+                    setIsUploadModalOpen(true);
                   }}
-                  className="px-4 py-2 bg-blue-700 text-white font-bold text-xs rounded hover:bg-blue-800 shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm rounded-lg shadow-sm cursor-pointer inline-flex items-center gap-2"
                 >
                   <PlusIcon className="w-4 h-4" />
-                  <span>Upload Your First Test Paper</span>
+                  <span>Upload &amp; Format Question Paper</span>
                 </button>
               </div>
             ) : (
-              /* Tests Table */
-              <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-200 font-bold border-b border-gray-200 dark:border-slate-700">
-                        <th className="p-3">Test Title</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-center">Duration</th>
-                        <th className="p-3 text-center">Questions</th>
-                        <th className="p-3 text-center">Key Configured</th>
-                        <th className="p-3 text-center">Created</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                      {tests.map((test) => {
-                        const totalQ = test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
-                        const filledAnswers = Object.keys(test.answerKey || {}).length;
-                        const isFullyKeyed = filledAnswers >= totalQ;
-                        const formattedQCount = (test.questions || []).length;
+              /* Simple, Clean Test Papers List */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tests.map((test) => {
+                  const totalQ = (test.questions && test.questions.length > 0)
+                    ? test.questions.length
+                    : test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
+                  const isFormatted = test.questions && test.questions.length > 0;
+                  const answerKeyCount = Object.keys(test.answerKey || {}).length;
 
-                        return (
-                          <tr
-                            key={test.id}
-                            className="hover:bg-gray-50 dark:hover:bg-slate-850/50 transition-colors"
+                  return (
+                    <div
+                      key={test.id}
+                      className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                    >
+                      <div className="space-y-2.5">
+                        {/* Status badge & Duration */}
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublish(test.id)}
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded cursor-pointer transition-colors ${
+                              test.status === 'published'
+                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200'
+                                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200'
+                            }`}
+                            title="Click to toggle published / draft"
                           >
-                            <td className="p-3 font-semibold text-gray-900 dark:text-slate-100">
-                              <div className="flex flex-col">
-                                <span className="font-bold">{test.title}</span>
-                                <span className="text-[11px] text-gray-400 dark:text-slate-500 font-mono">
-                                  {test.pdfFileName || 'PDF Paper'} • {test.totalMarks} Marks
-                                  {formattedQCount > 0 && (
-                                    <span className="ml-2 font-semibold text-emerald-600 dark:text-emerald-400">
-                                      • ✨ {formattedQCount} Questions Formatted
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            </td>
+                            {test.status === 'published' ? '● Published' : '○ Draft'}
+                          </button>
 
-                            <td className="p-3">
-                              <button
-                                type="button"
-                                onClick={() => handleTogglePublish(test.id)}
-                                className={`text-[11px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                                  test.status === 'published'
-                                    ? 'bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
-                                    : 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/60'
-                                }`}
-                                title="Click to toggle status"
-                              >
-                                {test.status === 'published' ? '● Published' : '○ Draft'}
-                              </button>
-                            </td>
+                          <span className="text-xs font-mono text-gray-500 dark:text-slate-400">
+                            {test.duration} mins
+                          </span>
+                        </div>
 
-                            <td className="p-3 text-center font-mono text-gray-600 dark:text-slate-300">
-                              {test.duration} mins
-                            </td>
+                        {/* Title */}
+                        <h3 className="font-extrabold text-base text-gray-900 dark:text-slate-100 leading-snug">
+                          {test.title}
+                        </h3>
 
-                            <td className="p-3 text-center">
-                              <span className="font-bold text-blue-900 dark:text-blue-400">{totalQ}</span>
-                              <span className="text-[10px] text-gray-500 dark:text-slate-400 block">
-                                (P:{test.subjects.find((s) => s.id === 'physics')?.totalQuestions || 0}{' '}
-                                C:{test.subjects.find((s) => s.id === 'chemistry')?.totalQuestions || 0}{' '}
-                                M:{test.subjects.find((s) => s.id === 'mathematics')?.totalQuestions || 0})
-                              </span>
-                            </td>
+                        {/* Meta tags */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1">
+                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded font-bold">
+                            {totalQ} Questions
+                          </span>
+                          <span className="px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 rounded font-semibold">
+                            {test.totalMarks} Marks
+                          </span>
+                          {isFormatted ? (
+                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 rounded font-bold border border-emerald-200 dark:border-emerald-800">
+                              ✨ AI Formatted ({test.questions?.length})
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-[11px]">
+                              PDF Paper
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded font-semibold">
+                            Key: {answerKeyCount}/{totalQ}
+                          </span>
+                        </div>
+                      </div>
 
-                            <td className="p-3 text-center">
-                              <span
-                                className={`font-bold text-xs px-2 py-0.5 rounded ${
-                                  isFullyKeyed
-                                    ? 'text-green-700 dark:text-emerald-400 bg-green-50 dark:bg-emerald-950/50'
-                                    : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
-                                }`}
-                              >
-                                {filledAnswers}/{totalQ}
-                              </span>
-                            </td>
+                      {/* Action Buttons */}
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                        <Link
+                          href={`/test/${test.id}`}
+                          target="_blank"
+                          className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                          title="Open Student CBT Test Interface"
+                        >
+                          <span>Take CBT</span>
+                          <ExternalLinkIcon className="w-3.5 h-3.5" />
+                        </Link>
 
-                            <td className="p-3 text-center text-[11px] text-gray-500 dark:text-slate-400">
-                              {new Date(test.createdAt).toLocaleDateString()}
-                            </td>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTestToEdit(test);
+                              setIsUploadModalOpen(true);
+                            }}
+                            className="p-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg transition-all cursor-pointer"
+                            title="Review / Edit Questions"
+                          >
+                            <EditIcon className="w-4 h-4" />
+                          </button>
 
-                            <td className="p-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* Attempt CBT */}
-                                <Link
-                                  href={`/test/${test.id}`}
-                                  target="_blank"
-                                  className="p-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-400 rounded transition-all"
-                                  title="Take / Test CBT Interface"
-                                >
-                                  <ExternalLinkIcon className="w-4 h-4" />
-                                </Link>
-
-                                {/* Edit Test */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTestToEdit(test);
-                                    setIsCreateModalOpen(true);
-                                  }}
-                                  className="p-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded transition-all cursor-pointer"
-                                  title="Edit Questions & Answer Key"
-                                >
-                                  <EditIcon className="w-4 h-4" />
-                                </button>
-
-                                {/* Replace PDF */}
-                                <button
-                                  type="button"
-                                  onClick={() => setTestForPdfReplace(test)}
-                                  className="p-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded transition-all cursor-pointer"
-                                  title="Replace Question Paper PDF"
-                                >
-                                  <UploadIcon className="w-4 h-4" />
-                                </button>
-
-                                {/* Delete Test */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTest(test.id, test.title)}
-                                  className="p-1.5 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded transition-all cursor-pointer"
-                                  title="Delete Test"
-                                >
-                                  <TrashIcon className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTest(test.id, test.title)}
+                            className="p-1.5 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-300 rounded-lg transition-all cursor-pointer"
+                            title="Delete test paper"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -614,20 +578,20 @@ export default function AdminDashboardPage() {
             )}
 
             {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-xs">
               <div className="flex flex-1 items-center gap-3">
                 <input
                   type="text"
                   placeholder="Search by student name or test title..."
                   value={submissionSearch}
                   onChange={(e) => setSubmissionSearch(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs sm:text-sm w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-lg text-xs sm:text-sm w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <select
                   value={submissionTestFilter}
                   onChange={(e) => setSubmissionTestFilter(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Test Papers</option>
                   {tests.map((t) => (
@@ -640,7 +604,7 @@ export default function AdminDashboardPage() {
 
               <button
                 onClick={() => fetchSubmissions()}
-                className="p-2 border border-gray-300 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors self-end sm:self-auto"
+                className="p-2 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors self-end sm:self-auto"
                 title="Refresh student submissions"
               >
                 <RefreshCwIcon className="w-4 h-4" />
@@ -649,12 +613,12 @@ export default function AdminDashboardPage() {
 
             {/* Submissions Table */}
             {loadingSubmissions ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
                 <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <span className="text-sm text-gray-600 dark:text-slate-300 font-medium">Loading student submissions...</span>
               </div>
             ) : filteredSubmissions.length === 0 ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-lg border border-dashed border-gray-300 dark:border-slate-800 space-y-2">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-gray-300 dark:border-slate-800 space-y-2">
                 <BarChartIcon className="w-10 h-10 text-gray-400 dark:text-slate-500 mx-auto" />
                 <h4 className="font-bold text-gray-800 dark:text-slate-200 text-base">No Student Submissions Found</h4>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
@@ -664,7 +628,7 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
                     <thead>
@@ -752,8 +716,8 @@ export default function AdminDashboardPage() {
                                 <Link
                                   href={`/result/${sub.submissionId}`}
                                   target="_blank"
-                                  className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-400 rounded text-xs font-bold transition-all flex items-center gap-1"
-                                  title="View full question-by-question candidate analysis"
+                                  className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                  title="View full candidate analysis"
                                 >
                                   <span>View Report</span>
                                   <ExternalLinkIcon className="w-3.5 h-3.5" />
@@ -762,7 +726,7 @@ export default function AdminDashboardPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteSubmission(sub.submissionId, sub.candidateName)}
-                                  className="p-1.5 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded transition-all cursor-pointer"
+                                  className="p-1.5 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-lg transition-all cursor-pointer"
                                   title="Delete submission"
                                 >
                                   <TrashIcon className="w-3.5 h-3.5" />
@@ -781,11 +745,11 @@ export default function AdminDashboardPage() {
         )}
       </main>
 
-      {/* Test Creation & Edit Modal */}
-      <TestFormModal
-        isOpen={isCreateModalOpen}
+      {/* Clean AI Test Upload & Breakdown Modal */}
+      <TestUploadModal
+        isOpen={isUploadModalOpen}
         onClose={() => {
-          setIsCreateModalOpen(false);
+          setIsUploadModalOpen(false);
           setTestToEdit(null);
         }}
         onTestSaved={() => {
@@ -794,17 +758,6 @@ export default function AdminDashboardPage() {
         }}
         testToEdit={testToEdit}
       />
-
-      {/* Replace PDF Modal */}
-      {testForPdfReplace && (
-        <ReplacePdfModal
-          isOpen={!!testForPdfReplace}
-          onClose={() => setTestForPdfReplace(null)}
-          testId={testForPdfReplace.id}
-          testTitle={testForPdfReplace.title}
-          onPdfReplaced={() => fetchTests()}
-        />
-      )}
     </div>
   );
 }
