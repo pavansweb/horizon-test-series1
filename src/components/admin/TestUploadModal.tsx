@@ -254,40 +254,53 @@ export function TestUploadModal({
           });
           setProcessingStatus(`Extracting ${sectionLabel}... (${i + 1} of ${totalChunks})`);
 
-          try {
-            const cRes = await fetch('/api/admin/gemini/parse-paper', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'extract-chunk',
-                pdfUrl: workingPdfUrl,
-                subject: c.subject,
-                startQuestion: c.start,
-                endQuestion: c.end,
-                chunkIndex: c.chunkIndex,
-              }),
-            });
-            const cText = await cRes.text();
-            let cData;
-            try {
-              cData = JSON.parse(cText);
-            } catch {
-              console.warn(`Chunk ${c.start}-${c.end} returned invalid JSON:`, cText.slice(0, 100));
-            }
+          let chunkAttempts = 0;
+          let chunkSuccess = false;
 
-            if (cData && cData.success && Array.isArray(cData.questions)) {
-              cData.questions.forEach((q: TestQuestion) => {
-                if (q && q.questionNumber) {
-                  questionMap.set(q.questionNumber, q);
-                  if (q.correctAnswer && !mergedKey[q.questionNumber]) {
-                    mergedKey[q.questionNumber] = String(q.correctAnswer).toUpperCase().trim();
-                  }
-                }
+          while (chunkAttempts < 2 && !chunkSuccess) {
+            chunkAttempts++;
+            try {
+              const cRes = await fetch('/api/admin/gemini/parse-paper', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'extract-chunk',
+                  pdfUrl: workingPdfUrl,
+                  subject: c.subject,
+                  startQuestion: c.start,
+                  endQuestion: c.end,
+                  chunkIndex: c.chunkIndex,
+                }),
               });
-              setProcessingStatus(`Extracted ${questionMap.size} questions...`);
+              const cText = await cRes.text();
+              let cData;
+              try {
+                cData = JSON.parse(cText);
+              } catch {
+                console.warn(`Chunk ${c.start}-${c.end} returned invalid JSON:`, cText.slice(0, 100));
+              }
+
+              if (cData && cData.success && Array.isArray(cData.questions) && cData.questions.length > 0) {
+                cData.questions.forEach((q: TestQuestion) => {
+                  if (q && q.questionNumber) {
+                    questionMap.set(q.questionNumber, q);
+                    if (q.correctAnswer && !mergedKey[q.questionNumber]) {
+                      mergedKey[q.questionNumber] = String(q.correctAnswer).toUpperCase().trim();
+                    }
+                  }
+                });
+                setProcessingStatus(`Extracted ${questionMap.size} questions...`);
+                chunkSuccess = true;
+              } else if (chunkAttempts < 2) {
+                await new Promise((r) => setTimeout(r, 1500));
+              }
+            } catch (cErr) {
+              if (chunkAttempts < 2) {
+                await new Promise((r) => setTimeout(r, 1500));
+              } else {
+                console.warn(`Chunk ${c.start}-${c.end} extraction skipped after 2 attempts:`, cErr);
+              }
             }
-          } catch (cErr) {
-            console.warn(`Chunk ${c.start}-${c.end} extraction skipped:`, cErr);
           }
         }
       }

@@ -29,9 +29,69 @@ interface ParsedExamData {
 
 const GEMINI_MODELS = [
   'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
   'gemini-3.8-flash',
 ];
+
+/**
+ * Strips any Devanagari (Hindi) script characters and full Hindi paragraphs.
+ * Protects against bilingual exam papers where Hindi and English are mixed or side-by-side.
+ */
+function stripHindiText(text: string): string {
+  if (!text) return '';
+
+  // 1. Filter out lines that are predominantly or purely Devanagari script
+  const lines = text.split('\n');
+  const filteredLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return true;
+
+    const devanagariMatches = trimmed.match(/[\u0900-\u097F]/g);
+    const devanagariCount = devanagariMatches ? devanagariMatches.length : 0;
+    const latinMatches = trimmed.match(/[a-zA-Z]/g);
+    const latinCount = latinMatches ? latinMatches.length : 0;
+
+    // If line has Devanagari and lacks substantial English, drop it
+    if (devanagariCount > 0 && devanagariCount >= latinCount) {
+      return false;
+    }
+    return true;
+  });
+
+  let result = filteredLines.join('\n');
+
+  // 2. Strip any remaining inline Devanagari characters and Hindi punctuation (danda ।, ॥)
+  result = result.replace(/[\u0900-\u097F\u0964\u0965]+/g, ' ');
+
+  // 3. Clean up formatting artifacts, extra spaces, and excessive blank lines
+  result = result
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return result;
+}
+
+/**
+ * Sanitizes a question by stripping any Hindi text from question statement and all options.
+ */
+function sanitizeQuestion<T extends Partial<TestQuestion>>(q: T): T {
+  if (!q) return q;
+
+  const questionText = stripHindiText(q.questionText || '');
+  const options = (q.options || []).map((opt) => ({
+    ...opt,
+    text: stripHindiText(cleanOptionText(opt.text || '', opt.id)),
+  }));
+
+  return {
+    ...q,
+    questionText,
+    options,
+  };
+}
 
 export async function POST(request: NextRequest) {
   if (!isAuthenticatedAdmin(request.headers)) {
@@ -153,7 +213,16 @@ export async function POST(request: NextRequest) {
     // Step 1: Extract overall paper structure & full answer key
     const structurePrompt = `You are an expert exam analyzer for JEE Main examination papers.
 Analyze this JEE question paper PDF thoroughly. Extract the overall exam structure and complete answer key.
-Return a STRICTLY VALID JSON object with this exact schema:
+
+CRITICAL INSTRUCTIONS FOR BILINGUAL & UNSTRUCTURED PAPERS:
+1. STRICTLY ENGLISH ONLY: The question paper may contain Hindi translations (Devanagari script) side-by-side or stacked. Completely IGNORE all Hindi text! Extract ONLY English titles and numbers.
+2. Subject Sequence: Preserve subject sequence as they appear in the question paper (e.g. Physics Q1-25, Chemistry Q26-50, Mathematics Q51-75).
+3. Section Detection:
+   - Section A: Multiple Choice Questions (MCQs) with 4 options (A, B, C, D).
+   - Section B: Numerical/Integer value questions (no options).
+4. Answer Key: Extract the complete answer key for every question (1 to 75 or 90). Search the final pages for the Answer Key / Solutions table. Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
+5. Identify numerical/integer questions (e.g. Q21-25, Q46-50, Q71-75).
+6. Return a STRICTLY VALID JSON object with this exact schema:
 {
   "title": string,
   "durationMinutes": number,
@@ -173,13 +242,7 @@ Return a STRICTLY VALID JSON object with this exact schema:
   "pdfStartPage": number,
   "pdfEndPage": number,
   "detectedSummary": string
-}
-
-Critical Instructions:
-1. Preserve subject sequence as they appear in the question paper (e.g. Mathematics Q1-25 first, or Physics Q1-25 first).
-2. Extract the complete answer key for every question (1 to 75 or 90). Search the final pages for the Answer Key / Solutions table. Convert MCQ numbers (1, 2, 3, 4) to uppercase letters (A, B, C, D).
-3. Identify numerical/integer questions (e.g. Q21-25, Q46-50, Q71-75).
-4. Return ONLY valid JSON.`;
+}`;
 
     let parsedStructure: ParsedExamData | null = null;
     let lastError: string | null = null;
@@ -189,7 +252,7 @@ Critical Instructions:
 
       for (const model of GEMINI_MODELS) {
         try {
-          const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 8000, 0);
+          const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 35000, 2);
           if (res) {
             parsedStructure = JSON.parse(res);
             break;
@@ -307,12 +370,17 @@ async function extractQuestionChunk(
   const prompt = `You are an expert exam analyzer for JEE Main examination papers.
 Analyze this JEE question paper PDF. Extract ALL questions from Question ${startQ} to Question ${endQ} (${subject.name}).
 
-CRITICAL REQUIREMENTS:
-1. ONLY ENGLISH: Extract ONLY the English question statement and English options. Completely IGNORE Hindi translation!
+CRITICAL REQUIREMENTS FOR BILINGUAL & UNSTRUCTURED PAPERS:
+1. STRICTLY ENGLISH ONLY:
+   - This paper is bilingual (English + Hindi).
+   - COMPLETELY DISCARD any Hindi/Devanagari script text (e.g. अ, आ, क, ख, etc.).
+   - If a page has 2 columns: The Hindi version is in one column and English in the other. Extract ONLY from the English column!
+   - If questions are stacked (Hindi paragraph followed by English, or vice versa), extract ONLY the English statement and English options!
+   - NEVER output text containing Devanagari characters.
 2. NO PLACEHOLDERS: Extract the real question statement and real option text for EVERY question from ${startQ} to ${endQ}.
-3. MCQs must have 4 options (A, B, C, D) with their exact text. Strip redundant "(A)" or "1." prefixes from option text.
+3. MCQs must have 4 options (A, B, C, D) with their exact text. Strip redundant "(A)", "(1)", or option markers from the option text.
 4. Numerical/Integer questions must have empty options [].
-5. LATEX FORMULAS: Convert all math, units, and chemistry formulas to standard LaTeX ($...$).
+5. LATEX MATH & FORMULAS: Convert all math, units, and chemistry formulas to standard KaTeX LaTeX ($...$).
    - Examples: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$, $\\text{m/s}^2$, $10^{-8}\\text{ T}$, $\\vec{A}$, $\\mathrm{H_2SO_4}$.
 6. Keep solution empty "" to preserve tokens and response speed.
 
@@ -340,11 +408,11 @@ Return STRICTLY VALID JSON:
 
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 14000, 0);
+        const res = await callGemini(key, model, prompt, pdfBase64, 25000, 2);
         if (res) {
           const parsed = JSON.parse(res);
           if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-            return parsed.questions as TestQuestion[];
+            return (parsed.questions as TestQuestion[]).map((q) => sanitizeQuestion(q));
           }
         }
       } catch (err) {
@@ -369,8 +437,8 @@ async function extractSingleQuestionFromPdf(
 Analyze this JEE question paper PDF. Extract ONLY Question ${questionNumber}.
 
 CRITICAL REQUIREMENTS:
-1. ONLY ENGLISH: Extract ONLY the English question statement and English options. Completely IGNORE Hindi translation!
-2. Extract the complete, exact question statement and option text.
+1. STRICTLY ENGLISH ONLY: Extract ONLY the English question statement and English options. Completely IGNORE all Hindi / Devanagari text!
+2. Extract the complete, exact English question statement and option text.
 3. If MCQ, return 4 options (A, B, C, D) with their exact text. Strip redundant prefixes like "(A)" or "1.".
 4. If numerical/integer, options must be empty [].
 5. LATEX FORMULAS: Convert all math, units, and chemistry formulas to standard LaTeX ($...$).
@@ -395,11 +463,11 @@ Return STRICTLY VALID JSON:
     const key = uniqueKeys[k];
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, pdfBase64, 13000, 0);
+        const res = await callGemini(key, model, prompt, pdfBase64, 20000, 2);
         if (res) {
           const parsed = JSON.parse(res);
           if (parsed && parsed.questionText) {
-            return parsed as Partial<TestQuestion>;
+            return sanitizeQuestion(parsed as Partial<TestQuestion>);
           }
         }
       } catch (err) {
@@ -421,7 +489,9 @@ async function formatSingleQuestionWithAi(
   const isNumerical = q.type === 'numerical';
   const prompt = `You are an expert exam question formatter for JEE Main.
 Format this question into clean English with standard KaTeX LaTeX math ($...$).
+CRITICAL: Completely IGNORE and REMOVE any Hindi translation or Devanagari text.
 Ensure equations, exponents, square roots, fractions, vectors, and units use standard LaTeX ($...$).
+
 Raw Question Statement:
 ${q.questionText || ''}
 
@@ -444,14 +514,15 @@ Return STRICTLY VALID JSON:
   for (const key of uniqueKeys) {
     for (const model of GEMINI_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, '', 15000, 0);
+        const res = await callGemini(key, model, prompt, '', 18000, 2);
         if (res) {
           const parsed = JSON.parse(res);
-          return {
+          const formatted = {
             ...q,
             questionText: parsed.questionText || q.questionText,
             options: isNumerical ? [] : (parsed.options || q.options),
           };
+          return sanitizeQuestion(formatted);
         }
       } catch {
         // try next
@@ -459,7 +530,7 @@ Return STRICTLY VALID JSON:
     }
   }
 
-  return q;
+  return sanitizeQuestion(q);
 }
 
 function cleanJsonString(text: string): string {
@@ -505,7 +576,7 @@ async function callGemini(
   promptText: string,
   pdfBase64: string,
   timeoutMs: number,
-  retries: number = 1
+  retries: number = 2
 ): Promise<string | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
@@ -537,7 +608,23 @@ async function callGemini(
         signal: controller.signal,
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+      interface GeminiResponse {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string }>;
+          };
+        }>;
+        error?: { message?: string };
+      }
+      let data: GeminiResponse = {};
+      try {
+        data = JSON.parse(rawText) as GeminiResponse;
+      } catch {
+        // Non-JSON response (e.g. gateway timeout or proxy error)
+        data = { error: { message: rawText.slice(0, 200) || `Status ${response.status}` } };
+      }
+
       if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
         return cleanJsonString(data.candidates[0].content.parts[0].text);
       }
@@ -545,18 +632,26 @@ async function callGemini(
       const status = response.status;
       const errorMsg = data.error?.message || `Status ${status}`;
 
-      if ((status === 503 || status === 429) && attempt < retries) {
-        await new Promise((r) => setTimeout(r, 1000 + Math.random() * 500));
+      // 503 (High demand) or 429 (Rate limit) or 500: Wait with exponential backoff and retry
+      if ((status === 503 || status === 429 || status === 500) && attempt < retries) {
+        const backoffMs = 1500 * (attempt + 1) + Math.floor(Math.random() * 1000);
+        console.warn(`[Gemini ${model}] ${status} ${errorMsg}. Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${retries})...`);
+        await new Promise((r) => setTimeout(r, backoffMs));
         continue;
       }
 
       throw new Error(errorMsg);
-    } catch (err) {
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, 1000));
+    } catch (err: unknown) {
+      const isAbort = (err as Error)?.name === 'AbortError';
+      const msg = isAbort ? `Request timed out after ${timeoutMs}ms` : (err as Error)?.message || 'Gemini error';
+
+      if (attempt < retries && !isAbort) {
+        const backoffMs = 1500 * (attempt + 1) + Math.floor(Math.random() * 500);
+        console.warn(`[Gemini ${model}] Attempt ${attempt + 1} failed: ${msg}. Retrying in ${backoffMs}ms...`);
+        await new Promise((r) => setTimeout(r, backoffMs));
         continue;
       }
-      throw err;
+      throw new Error(msg);
     } finally {
       clearTimeout(timer);
     }
@@ -647,7 +742,7 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
                 { id: 'D', text: 'Option D' },
               ]);
 
-      fullQuestions.push({
+      fullQuestions.push(sanitizeQuestion({
         questionNumber: qNum,
         subjectId: q.subjectId || subject.id,
         type: isInteger ? 'numerical' : (q.type || 'mcq'),
@@ -658,7 +753,7 @@ function ensureFullExamQuestions(parsed: ParsedExamData) {
         options: opts,
         correctAnswer: q.correctAnswer || correct,
         solution: q.solution || '',
-      });
+      }));
     } else {
       fullQuestions.push({
         questionNumber: qNum,
