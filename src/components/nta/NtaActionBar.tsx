@@ -18,6 +18,7 @@ interface NtaActionBarProps {
 export function NtaActionBar({
   onSaveAndNext,
   onSaveAndMarkForReview,
+  onClearResponse,
   onMarkForReviewAndNext,
   onPrevious,
   onNext,
@@ -27,178 +28,82 @@ export function NtaActionBar({
   hasSelectedOption,
 }: NtaActionBarProps) {
   return (
-    <div
-      className="action-bar-wrap w-full flex items-end justify-between select-none"
-      style={{
-        background: '#ffffff',
-        padding: '12px 20px 14px 20px',
-      }}
-    >
-      {/* Left button stack matching attached media layout */}
-      <div className="flex flex-col gap-2.5">
-        {/* Row 1: SAVE & NEXT (Green) and SAVE & MARK FOR REVIEW (Orange) */}
-        <div className="flex items-center gap-3">
-          {/* SAVE & NEXT */}
-          <button
-            type="button"
-            onClick={onSaveAndNext}
-            style={{
-              background: '#4caf50',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '2px',
-              padding: '9px 22px',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#43a047')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4caf50')}
-          >
-            SAVE &amp; NEXT
-          </button>
+    <div className="action-bar-wrap w-full flex flex-wrap items-center justify-between select-none bg-white dark:bg-slate-900 border-t border-slate-300 dark:border-slate-800 px-4 py-3 gap-3 transition-colors">
+      {/* Left button group: Save & Next, Save & Mark, Mark for Review, Clear */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* SAVE & NEXT (Green) */}
+        <button
+          type="button"
+          onClick={onSaveAndNext}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded uppercase tracking-wider shadow-xs cursor-pointer transition-all"
+        >
+          Save &amp; Next
+        </button>
 
-          {/* SAVE & MARK FOR REVIEW */}
-          <button
-            type="button"
-            onClick={onSaveAndMarkForReview}
-            disabled={!hasSelectedOption}
-            style={{
-              background: hasSelectedOption ? '#d9822b' : '#e0e0e0',
-              color: hasSelectedOption ? '#ffffff' : '#9e9e9e',
-              border: 'none',
-              borderRadius: '2px',
-              padding: '9px 22px',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              textTransform: 'uppercase',
-              cursor: hasSelectedOption ? 'pointer' : 'not-allowed',
-              boxShadow: hasSelectedOption ? '0 1px 2px rgba(0,0,0,0.15)' : 'none',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              if (hasSelectedOption) e.currentTarget.style.backgroundColor = '#c77424';
-            }}
-            onMouseLeave={(e) => {
-              if (hasSelectedOption) e.currentTarget.style.backgroundColor = '#d9822b';
-            }}
-          >
-            SAVE &amp; MARK FOR REVIEW
-          </button>
-        </div>
+        {/* SAVE & MARK FOR REVIEW (Amber/Orange) */}
+        <button
+          type="button"
+          onClick={onSaveAndMarkForReview}
+          disabled={!hasSelectedOption}
+          className={`px-4 py-2 font-bold text-xs rounded uppercase tracking-wider shadow-xs transition-all ${
+            hasSelectedOption
+              ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
+              : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-300 dark:border-slate-700'
+          }`}
+        >
+          Save &amp; Mark For Review
+        </button>
 
-        {/* Row 2: MARK FOR REVIEW & NEXT (Dark Blue) */}
-        <div>
-          <button
-            type="button"
-            onClick={onMarkForReviewAndNext}
-            style={{
-              background: '#1b4372',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '2px',
-              padding: '9px 22px',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#15355e')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#1b4372')}
-          >
-            MARK FOR REVIEW &amp; NEXT
-          </button>
-        </div>
+        {/* MARK FOR REVIEW & NEXT (Navy Blue) */}
+        <button
+          type="button"
+          onClick={onMarkForReviewAndNext}
+          className="px-4 py-2 bg-[#1b4372] hover:bg-[#15355e] dark:bg-blue-800 dark:hover:bg-blue-700 text-white font-bold text-xs rounded uppercase tracking-wider shadow-xs cursor-pointer transition-all"
+        >
+          Mark For Review &amp; Next
+        </button>
 
-        {/* Row 3: << BACK and NEXT >> */}
-        <div className="flex items-center gap-2">
-          {/* << BACK */}
+        {/* CLEAR RESPONSE */}
+        {hasSelectedOption && (
           <button
             type="button"
-            onClick={onPrevious}
-            disabled={isFirstQuestion}
-            style={{
-              background: '#f1f3f5',
-              color: isFirstQuestion ? '#9ca3af' : '#334155',
-              border: '1px solid #94a3b8',
-              borderRadius: '2px',
-              padding: '7px 16px',
-              fontSize: '12px',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              cursor: isFirstQuestion ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              if (!isFirstQuestion) e.currentTarget.style.backgroundColor = '#e2e8f0';
-            }}
-            onMouseLeave={(e) => {
-              if (!isFirstQuestion) e.currentTarget.style.backgroundColor = '#f1f3f5';
-            }}
+            onClick={onClearResponse}
+            className="px-3 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800 font-bold text-xs rounded uppercase tracking-wider cursor-pointer transition-all"
           >
-            &lt;&lt; BACK
+            Clear Response
           </button>
-
-          {/* NEXT >> */}
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={isLastQuestion}
-            style={{
-              background: '#f1f3f5',
-              color: isLastQuestion ? '#9ca3af' : '#334155',
-              border: '1px solid #94a3b8',
-              borderRadius: '2px',
-              padding: '7px 16px',
-              fontSize: '12px',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              cursor: isLastQuestion ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              if (!isLastQuestion) e.currentTarget.style.backgroundColor = '#e2e8f0';
-            }}
-            onMouseLeave={(e) => {
-              if (!isLastQuestion) e.currentTarget.style.backgroundColor = '#f1f3f5';
-            }}
-          >
-            NEXT &gt;&gt;
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Right side: SUBMIT button (Green) at bottom right of question area */}
-      <div>
+      {/* Right button group: Back, Next & Submit */}
+      <div className="flex items-center gap-2">
+        {/* << BACK */}
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={isFirstQuestion}
+          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs rounded uppercase tracking-wide cursor-pointer transition-all"
+        >
+          &lt;&lt; Back
+        </button>
+
+        {/* NEXT >> */}
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={isLastQuestion}
+          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs rounded uppercase tracking-wide cursor-pointer transition-all"
+        >
+          Next &gt;&gt;
+        </button>
+
+        {/* SUBMIT (Green, prominent) */}
         <button
           type="button"
           onClick={onSubmitTest}
-          style={{
-            background: '#4caf50',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '2px',
-            padding: '9px 26px',
-            fontSize: '13px',
-            fontWeight: 700,
-            letterSpacing: '0.6px',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-            whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#43a047')}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4caf50')}
+          className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs sm:text-sm rounded uppercase tracking-wider shadow-sm cursor-pointer transition-all ml-2"
         >
-          SUBMIT
+          Submit Test
         </button>
       </div>
     </div>

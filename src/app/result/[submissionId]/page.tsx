@@ -12,6 +12,7 @@ import {
   ExternalLinkIcon,
 } from '@/components/icons/Icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { MathText } from '@/components/MathText';
 
 export default function ResultPage({
   params,
@@ -546,20 +547,54 @@ export default function ResultPage({
 
                   {/* Render Question Text if parsed */}
                   {selectedQuestion.questionText && (
-                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                      <span className="font-bold text-slate-900 dark:text-slate-100 block mb-1">Question Statement:</span>
-                      {selectedQuestion.questionText}
+                    <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 leading-relaxed max-h-56 overflow-y-auto">
+                      <span className="font-bold text-slate-900 dark:text-slate-100 block mb-1 text-xs uppercase tracking-wide">
+                        Question Statement:
+                      </span>
+                      <MathText content={selectedQuestion.questionText} />
+                    </div>
+                  )}
+
+                  {/* Render Options if available */}
+                  {selectedQuestion.options && selectedQuestion.options.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+                        Options:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {selectedQuestion.options.map((opt) => {
+                          const isCand = selectedQuestion.selectedOption?.toUpperCase() === opt.id.toUpperCase();
+                          const isCorr = selectedQuestion.correctOption?.toUpperCase() === opt.id.toUpperCase();
+                          let borderClass = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70';
+                          if (isCorr) {
+                            borderClass = 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-semibold';
+                          } else if (isCand && !isCorr) {
+                            borderClass = 'border-red-400 bg-red-50/70 dark:bg-red-950/40 text-red-900 dark:text-red-200';
+                          }
+
+                          return (
+                            <div key={opt.id} className={`p-2.5 rounded-lg border flex items-start gap-2 ${borderClass}`}>
+                              <span className="font-bold uppercase shrink-0">({opt.id})</span>
+                              <div className="flex-1">
+                                <MathText content={opt.text} />
+                              </div>
+                              {isCorr && <span className="text-emerald-600 font-bold text-xs shrink-0">✓ Key</span>}
+                              {isCand && !isCorr && <span className="text-red-600 font-bold text-xs shrink-0">✗ Your Choice</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
                   {/* Render Solution / Explanation if available */}
                   {selectedQuestion.solution && (
-                    <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 leading-relaxed max-h-48 overflow-y-auto">
-                      <span className="font-bold text-blue-950 dark:text-blue-200 block mb-1 flex items-center gap-1">
+                    <div className="p-3.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 leading-relaxed max-h-56 overflow-y-auto">
+                      <span className="font-bold text-blue-950 dark:text-blue-200 block mb-1 flex items-center gap-1.5">
                         <span>💡</span>
                         <span>Step-by-Step Solution / Explanation:</span>
                       </span>
-                      {selectedQuestion.solution}
+                      <MathText content={selectedQuestion.solution} />
                     </div>
                   )}
 

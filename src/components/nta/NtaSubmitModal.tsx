@@ -56,199 +56,109 @@ export function NtaSubmitModal({
   const totalAnsweredAndMarked = breakdown.reduce((sum, b) => sum + b.answeredAndMarked, 0);
   const totalNotVisited = breakdown.reduce((sum, b) => sum + b.notVisited, 0);
 
-  const thStyle: React.CSSProperties = {
-    padding: '6px 8px',
-    borderRight: '1px solid #bdbdbd',
-    borderBottom: '1px solid #bdbdbd',
-    textAlign: 'center',
-    fontSize: '11px',
-    fontWeight: 700,
-    background: '#e3f2fd',
-    color: '#212121',
-  };
-
-  const tdStyle: React.CSSProperties = {
-    padding: '5px 8px',
-    borderRight: '1px solid #e0e0e0',
-    borderBottom: '1px solid #e0e0e0',
-    textAlign: 'center',
-    fontSize: '12px',
-    fontWeight: 500,
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-    >
-      <div
-        style={{
-          background: 'white',
-          border: '2px solid #1e4273',
-          borderRadius: '3px',
-          maxWidth: '640px',
-          width: '95%',
-          overflow: 'hidden',
-        }}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-2xs animate-fade-in select-none">
+      <div className="bg-white dark:bg-slate-900 border-2 border-[#1e4273] dark:border-blue-600 rounded-md max-w-2xl w-full overflow-hidden shadow-2xl transition-colors">
         {/* Header */}
-        <div
-          style={{
-            background: '#1e4273',
-            color: 'white',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <h2 style={{ fontSize: '14px', fontWeight: 700 }}>Examination Summary</h2>
-          <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: '2px' }}>
-            HORIZON CBT
-          </span>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '16px' }}>
-          <p style={{ fontSize: '12px', color: '#424242', marginBottom: '12px', fontWeight: 500 }}>
-            Please verify your test attempt summary before final submission:
-          </p>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #bdbdbd' }}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, textAlign: 'left' }}>Subject</th>
-                <th style={thStyle}>Total</th>
-                <th style={{ ...thStyle, color: '#2e7d32' }}>Answered</th>
-                <th style={{ ...thStyle, color: '#c62828' }}>Not Ans.</th>
-                <th style={{ ...thStyle, color: '#7b1fa2' }}>Marked</th>
-                <th style={{ ...thStyle, color: '#6a1b9a' }}>Ans & Marked</th>
-                <th style={{ ...thStyle, color: '#757575', borderRight: 'none' }}>Not Visited</th>
-              </tr>
-            </thead>
-            <tbody>
-              {breakdown.map((row) => (
-                <tr key={row.name}>
-                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{row.name}</td>
-                  <td style={tdStyle}>{row.total}</td>
-                  <td style={{ ...tdStyle, color: '#2e7d32', fontWeight: 700 }}>{row.answered}</td>
-                  <td style={{ ...tdStyle, color: '#c62828' }}>{row.notAnswered}</td>
-                  <td style={{ ...tdStyle, color: '#7b1fa2' }}>{row.markedForReview}</td>
-                  <td style={{ ...tdStyle, color: '#6a1b9a', fontWeight: 700 }}>{row.answeredAndMarked}</td>
-                  <td style={{ ...tdStyle, color: '#757575', borderRight: 'none' }}>{row.notVisited}</td>
-                </tr>
-              ))}
-              {/* Total Row */}
-              <tr style={{ background: '#f5f5f5' }}>
-                <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, borderBottom: 'none' }}>TOTAL</td>
-                <td style={{ ...tdStyle, fontWeight: 700, borderBottom: 'none' }}>{totalQuestions}</td>
-                <td style={{ ...tdStyle, color: '#2e7d32', fontWeight: 700, borderBottom: 'none' }}>{totalAnswered}</td>
-                <td style={{ ...tdStyle, color: '#c62828', fontWeight: 700, borderBottom: 'none' }}>{totalNotAnswered}</td>
-                <td style={{ ...tdStyle, color: '#7b1fa2', fontWeight: 700, borderBottom: 'none' }}>{totalMarkedForReview}</td>
-                <td style={{ ...tdStyle, color: '#6a1b9a', fontWeight: 700, borderBottom: 'none' }}>{totalAnsweredAndMarked}</td>
-                <td style={{ ...tdStyle, color: '#757575', fontWeight: 700, borderRight: 'none', borderBottom: 'none' }}>{totalNotVisited}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Warning */}
-          <div
-            style={{
-              marginTop: '14px',
-              padding: '10px 12px',
-              background: '#fff3e0',
-              border: '1px solid #ffb74d',
-              borderRadius: '2px',
-              fontSize: '12px',
-              color: '#e65100',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '16px', lineHeight: '1', flexShrink: 0 }}>⚠</span>
-            <div>
-              <strong>Important Notice:</strong> Are you sure you want to submit the test?
-              Once submitted, you will not be able to change any answers.
-              Your score and detailed analysis will be evaluated immediately.
-            </div>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div
-          style={{
-            background: '#eceff1',
-            padding: '10px 16px',
-            borderTop: '1px solid #bdbdbd',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: '10px',
-          }}
-        >
+        <div className="bg-[#1e4273] dark:bg-slate-800 text-white px-4 py-3 flex items-center justify-between">
+          <h3 className="font-extrabold text-sm sm:text-base tracking-wide flex items-center gap-2">
+            <span>📋</span>
+            <span>EXAMINATION SUBMISSION SUMMARY</span>
+          </h3>
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            style={{
-              padding: '6px 16px',
-              fontSize: '12px',
-              fontWeight: 700,
-              background: 'white',
-              color: '#424242',
-              border: '1px solid #9e9e9e',
-              borderRadius: '2px',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            }}
+            className="text-white hover:text-red-200 text-sm font-bold cursor-pointer disabled:opacity-40"
           >
-            No, Resume Test
+            ✕
           </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+            Please verify your test attempt summary before final submission. Once submitted, answers cannot be modified:
+          </p>
+
+          {/* Table */}
+          <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded">
+            <table className="w-full text-xs text-center border-collapse">
+              <thead>
+                <tr className="bg-blue-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
+                  <th className="p-2 text-left border-r border-slate-300 dark:border-slate-700">Subject</th>
+                  <th className="p-2 border-r border-slate-300 dark:border-slate-700">Total Qs</th>
+                  <th className="p-2 border-r border-slate-300 dark:border-slate-700 text-emerald-700 dark:text-emerald-400">Answered</th>
+                  <th className="p-2 border-r border-slate-300 dark:border-slate-700 text-red-600 dark:text-red-400">Not Answered</th>
+                  <th className="p-2 border-r border-slate-300 dark:border-slate-700 text-purple-700 dark:text-purple-300">Marked Review</th>
+                  <th className="p-2 border-r border-slate-300 dark:border-slate-700 text-indigo-700 dark:text-indigo-300">Ans &amp; Marked</th>
+                  <th className="p-2 text-slate-600 dark:text-slate-400">Not Visited</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200">
+                {breakdown.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="p-2 text-left font-bold border-r border-slate-300 dark:border-slate-700">{row.name}</td>
+                    <td className="p-2 border-r border-slate-300 dark:border-slate-700">{row.total}</td>
+                    <td className="p-2 font-bold text-emerald-700 dark:text-emerald-400 border-r border-slate-300 dark:border-slate-700">{row.answered}</td>
+                    <td className="p-2 font-bold text-red-600 dark:text-red-400 border-r border-slate-300 dark:border-slate-700">{row.notAnswered}</td>
+                    <td className="p-2 font-bold text-purple-700 dark:text-purple-300 border-r border-slate-300 dark:border-slate-700">{row.markedForReview}</td>
+                    <td className="p-2 font-bold text-indigo-700 dark:text-indigo-300 border-r border-slate-300 dark:border-slate-700">{row.answeredAndMarked}</td>
+                    <td className="p-2 text-slate-500 dark:text-slate-400">{row.notVisited}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 dark:bg-slate-800/80 font-bold text-slate-900 dark:text-slate-100 border-t border-slate-300 dark:border-slate-700">
+                  <td className="p-2 text-left border-r border-slate-300 dark:border-slate-700">Total</td>
+                  <td className="p-2 border-r border-slate-300 dark:border-slate-700">{totalQuestions}</td>
+                  <td className="p-2 text-emerald-700 dark:text-emerald-400 border-r border-slate-300 dark:border-slate-700">{totalAnswered}</td>
+                  <td className="p-2 text-red-600 dark:text-red-400 border-r border-slate-300 dark:border-slate-700">{totalNotAnswered}</td>
+                  <td className="p-2 text-purple-700 dark:text-purple-300 border-r border-slate-300 dark:border-slate-700">{totalMarkedForReview}</td>
+                  <td className="p-2 text-indigo-700 dark:text-indigo-300 border-r border-slate-300 dark:border-slate-700">{totalAnsweredAndMarked}</td>
+                  <td className="p-2 text-slate-500 dark:text-slate-400">{totalNotVisited}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-3 rounded text-xs text-amber-800 dark:text-amber-200 space-y-1">
+            <span className="font-bold block">⚠️ Important Reminder:</span>
+            <p>
+              Questions marked &quot;Answered &amp; Marked for Review&quot; WILL be evaluated in your final score.
+              Once submitted, you will receive your immediate score analysis and solution report.
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs rounded uppercase tracking-wider cursor-pointer disabled:opacity-40"
+          >
+            Return to Test
+          </button>
+
           <button
             type="button"
             onClick={onConfirmSubmit}
             disabled={isSubmitting}
-            style={{
-              padding: '6px 20px',
-              fontSize: '12px',
-              fontWeight: 700,
-              background: '#4caf50',
-              color: 'white',
-              border: '1px solid #388e3c',
-              borderRadius: '2px',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded uppercase tracking-wider shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
           >
             {isSubmitting ? (
               <>
-                <div
-                  style={{
-                    width: '14px',
-                    height: '14px',
-                    border: '2px solid white',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 0.6s linear infinite',
-                  }}
-                />
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Evaluating...</span>
               </>
             ) : (
-              <span>Yes, Submit Examination</span>
+              <span>Confirm &amp; Submit Test</span>
             )}
           </button>
         </div>
       </div>
-
-      {/* Spin keyframes */}
-      <style jsx>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

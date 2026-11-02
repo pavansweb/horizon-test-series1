@@ -320,71 +320,30 @@ export default function TestAttemptPage({
 
   if (loading) {
     return (
-      <div
-        className="w-screen h-screen flex flex-col items-center justify-center"
-        style={{ background: '#f8fafc' }}
-      >
-        <div
-          style={{
-            width: '36px',
-            height: '36px',
-            border: '3px solid #1e4273',
-            borderTopColor: 'transparent',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            marginBottom: '14px',
-          }}
-        />
-        <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
-          Loading Examination...
-        </h2>
-        <p style={{ fontSize: '12px', color: '#64748b' }}>
+      <div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+        <h2 className="text-base font-bold mb-1">Loading Examination...</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Preparing HORIZON TEST SERIES environment
         </p>
-        <style jsx>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
       </div>
     );
   }
 
   if (error || !test) {
     return (
-      <div
-        className="w-screen h-screen flex flex-col items-center justify-center p-4"
-        style={{ background: '#f8fafc' }}
-      >
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            padding: '24px 32px',
-            maxWidth: '420px',
-            width: '100%',
-            textAlign: 'center',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-          }}
-        >
-          <div style={{ fontSize: '36px', marginBottom: '10px' }}>⚠️</div>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+      <div className="w-screen h-screen flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 transition-colors">
+        <div className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-6 max-w-md w-full text-center shadow-lg">
+          <div className="text-4xl mb-2">⚠️</div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">
             Unable to Open Test
           </h2>
-          <p style={{ fontSize: '12px', color: '#475569', marginBottom: '18px' }}>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-5">
             {error || 'The requested test could not be loaded.'}
           </p>
           <button
             onClick={() => router.push('/')}
-            style={{
-              padding: '8px 20px',
-              fontSize: '12px',
-              fontWeight: 700,
-              background: '#1e4273',
-              color: 'white',
-              border: 'none',
-              borderRadius: '2px',
-              cursor: 'pointer',
-            }}
+            className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded uppercase tracking-wider cursor-pointer transition-colors"
           >
             Back to Home
           </button>
@@ -394,13 +353,7 @@ export default function TestAttemptPage({
   }
 
   return (
-    <div
-      className="nta-exam-ui w-screen h-screen flex flex-col overflow-hidden"
-      style={{
-        background: '#f8fafc',
-        fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, Arial, sans-serif',
-      }}
-    >
+    <div className="nta-exam-ui w-screen h-screen flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* 1. Header with HORIZON TEST SERIES branding & Pill Timer */}
       <NtaHeader
         candidateName={candidateName}
@@ -416,43 +369,16 @@ export default function TestAttemptPage({
         onSelectFilter={handleSelectFilter}
       />
 
-      {/* 3. Outer Canvas with padding on left, right, and bottom (Generous left padding reveals plain page background behind) */}
-      <div
-        className="outer-canvas-wrap"
-        style={{
-          flex: '1 1 0',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          minHeight: 0,
-          padding: '12px 20px 16px 90px',
-          background: '#e9edf2',
-        }}
-      >
-        {/* The Big Brighter Box (Container fitting Question, Palette, 4 Options, Bottomline & Action Buttons) */}
-        <div
-          className="big-box-wrap"
-          style={{
-            flex: '1 1 0',
-            display: 'flex',
-            background: '#ffffff',
-            border: '1.5px solid #cbd5e1',
-            borderRadius: '4px',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.07)',
-            overflow: 'hidden',
-            minHeight: 0,
-            position: 'relative',
-            maxWidth: '1600px',
-            width: '100%',
-          }}
-        >
-          {/* Left Column: Question Area, PDF Embed, Options, Bottomline, Action Buttons */}
+      {/* 3. Outer Canvas */}
+      <div className="outer-canvas-wrap flex-1 flex flex-col overflow-hidden min-h-0 p-2 sm:p-3 md:p-4 bg-slate-200 dark:bg-slate-950 transition-colors">
+        {/* The Big Container fitting Question, Palette, Options, Action Buttons */}
+        <div className="big-box-wrap flex-1 flex bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded shadow-md overflow-hidden min-h-0 relative max-w-[1600px] w-full mx-auto transition-colors">
+          {/* Left Column: Question Area, Options, Bottomline, Action Buttons */}
           <div
-            className="left-col-wrap flex flex-col h-full overflow-y-auto"
+            className="left-col-wrap flex flex-col h-full overflow-y-auto bg-white dark:bg-slate-900 transition-colors"
             style={{
               flex: isPaletteCollapsed ? '1 1 100%' : '1 1 68%',
               minWidth: 0,
-              background: '#ffffff',
             }}
           >
             {/* Render actual structured question if available, otherwise fallback to PDF viewer */}
@@ -489,8 +415,7 @@ export default function TestAttemptPage({
               </>
             )}
 
-            {/* The Bottomline Divider */}
-            <div style={{ borderTop: '1.5px solid #cbd5e1', width: '100%', margin: 0, flexShrink: 0 }} />
+            <div className="flex-1" />
 
             {/* Action Buttons Bar: Save & Next, Save & Mark, Mark for Review, Back, Next, Submit */}
             <NtaActionBar
@@ -508,56 +433,20 @@ export default function TestAttemptPage({
           </div>
 
           {/* Center Splitter with Collapse/Expand Arrow Button ('>') */}
-          <div
-            style={{
-              position: 'relative',
-              width: '0px',
-              zIndex: 20,
-            }}
-          >
+          <div className="relative w-0 z-20">
             <button
               type="button"
               onClick={() => setIsPaletteCollapsed(!isPaletteCollapsed)}
               title={isPaletteCollapsed ? 'Show Question Palette' : 'Hide Question Palette'}
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '-10px',
-                transform: 'translateY(-50%)',
-                width: '18px',
-                height: '34px',
-                background: '#374151',
-                color: '#ffffff',
-                border: '1px solid #1f2937',
-                borderRadius: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-                zIndex: 30,
-              }}
+              className="absolute top-1/2 -left-2.5 -translate-y-1/2 w-5 h-9 bg-slate-700 hover:bg-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xs flex items-center justify-center cursor-pointer text-xs font-bold shadow-md z-30"
             >
-              {isPaletteCollapsed ? '<' : '>'}
+              {isPaletteCollapsed ? '‹' : '›'}
             </button>
           </div>
 
           {/* Right Column: Question Palette & Legend */}
           {!isPaletteCollapsed && (
-            <div
-              className="palette-wrap"
-              style={{
-                width: '380px',
-                maxWidth: '390px',
-                flexShrink: 0,
-                height: '100%',
-                overflow: 'hidden',
-                background: '#ffffff',
-                borderLeft: '1.5px solid #cbd5e1',
-              }}
-            >
+            <div className="palette-wrap w-[340px] sm:w-[380px] max-w-[400px] shrink-0 h-full overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-300 dark:border-slate-800 transition-colors">
               <NtaQuestionPalette
                 subjects={test.subjects}
                 activeSubjectId={activeSubjectId}

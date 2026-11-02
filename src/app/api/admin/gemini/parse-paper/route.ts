@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for AI paper analysis
 
 const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-pro-latest',
   'gemini-3.8-flash',
 ];
 

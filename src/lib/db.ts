@@ -510,3 +510,83 @@ export async function getSubmissionById(submissionId: string): Promise<TestResul
     return null;
   }
 }
+
+/**
+ * Gets all student test submissions (optionally filtered by testId)
+ */
+export async function getAllSubmissions(testId?: string): Promise<TestResult[]> {
+  const results: TestResult[] = [];
+
+  // Try Supabase first
+  if (isSupabaseConfigured && supabase) {
+    try {
+      let query = supabase
+        .from('jee_submissions')
+        .select('data')
+        .order('createdAt', { ascending: false });
+
+      if (testId) {
+        query = query.eq('testId', testId);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data.map((d: { data: unknown }) => d.data as TestResult);
+      }
+    } catch (err) {
+      console.warn('Supabase getAllSubmissions fallback to local:', err);
+    }
+  }
+
+  // Fallback to local submissions cache / file
+  try {
+    await ensureDataFiles();
+    let submissions: Record<string, TestResult> = {};
+    if (submissionsCache) {
+      submissions = submissionsCache;
+    } else {
+      const raw = await fs.readFile(SUBMISSIONS_FILE, 'utf-8');
+      submissions = JSON.parse(raw);
+      submissionsCache = submissions;
+    }
+
+    const list = Object.values(submissions);
+    const filtered = testId ? list.filter((s) => s.testId === testId) : list;
+    return filtered.sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+  } catch {
+    return results;
+  }
+}
+
+/**
+ * Deletes a candidate submission
+ */
+export async function deleteSubmission(submissionId: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('jee_submissions').delete().eq('submissionId', submissionId);
+    } catch (err) {
+      console.warn('Supabase deleteSubmission error:', err);
+    }
+  }
+
+  if (submissionsCache) {
+    delete submissionsCache[submissionId];
+  }
+
+  try {
+    await ensureDataFiles();
+    const raw = await fs.readFile(SUBMISSIONS_FILE, 'utf-8');
+    const submissions: Record<string, TestResult> = JSON.parse(raw);
+    delete submissions[submissionId];
+    await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2), 'utf-8');
+    submissionsCache = submissions;
+  } catch (err) {
+    console.warn('Local delete submission error:', err);
+  }
+
+  return true;
+}
+

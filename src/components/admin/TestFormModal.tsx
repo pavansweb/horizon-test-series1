@@ -5,6 +5,7 @@ import { Test, SubjectConfig, MarkingScheme, TestQuestion } from '@/lib/types';
 import { AnswerKeyEditor } from './AnswerKeyEditor';
 import { UploadIcon, CheckIcon } from '@/components/icons/Icons';
 import { parseUniversalAnswerKey } from '@/lib/answerKeyParser';
+import { MathText } from '@/components/MathText';
 
 interface TestFormModalProps {
   isOpen: boolean;
@@ -62,7 +63,8 @@ export function TestFormModal({
   const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [status, setStatus] = useState<'draft' | 'published'>('published');
 
-  const [activeTab, setActiveTab] = useState<'details' | 'subjects' | 'answers'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'subjects' | 'questions' | 'answers'>('details');
+  const [questionFilterSubject, setQuestionFilterSubject] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isScanningPdf, setIsScanningPdf] = useState<boolean>(false);
@@ -314,6 +316,83 @@ export function TestFormModal({
     }
   };
 
+  const handleUpdateQuestion = (qNum: number, updated: Partial<TestQuestion>) => {
+    setQuestions((prev) => {
+      const idx = prev.findIndex((q) => q.questionNumber === qNum);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], ...updated };
+        return copy;
+      } else {
+        const sub = subjects.find((s) => qNum >= s.startQuestion && qNum <= s.endQuestion) || subjects[0];
+        const isInt = computedIntegerQuestions.includes(qNum);
+        const newQ: TestQuestion = {
+          questionNumber: qNum,
+          subjectId: sub.id,
+          type: isInt ? 'numerical' : 'mcq',
+          questionText: '',
+          options: isInt ? [] : [
+            { id: 'A', text: '' },
+            { id: 'B', text: '' },
+            { id: 'C', text: '' },
+            { id: 'D', text: '' },
+          ],
+          correctAnswer: '',
+          ...updated,
+        };
+        return [...prev, newQ].sort((a, b) => a.questionNumber - b.questionNumber);
+      }
+    });
+
+    if (updated.correctAnswer !== undefined) {
+      setAnswerKey((prev) => ({ ...prev, [qNum]: updated.correctAnswer! }));
+    }
+  };
+
+  const handleUpdateQuestionOption = (qNum: number, optId: string, text: string) => {
+    setQuestions((prev) => {
+      return prev.map((q) => {
+        if (q.questionNumber !== qNum) return q;
+        const opts = q.options ? [...q.options] : [];
+        const optIdx = opts.findIndex((o) => o.id === optId);
+        if (optIdx >= 0) {
+          opts[optIdx] = { ...opts[optIdx], text };
+        } else {
+          opts.push({ id: optId, text });
+        }
+        return { ...q, options: opts };
+      });
+    });
+  };
+
+  const handleGenerateQuestionSkeletons = () => {
+    const list: TestQuestion[] = [];
+    for (let q = 1; q <= totalQuestions; q++) {
+      const existing = questions.find((item) => item.questionNumber === q);
+      if (existing) {
+        list.push(existing);
+        continue;
+      }
+      const sub = subjects.find((s) => q >= s.startQuestion && q <= s.endQuestion) || subjects[0];
+      const isInt = computedIntegerQuestions.includes(q);
+      list.push({
+        questionNumber: q,
+        subjectId: sub.id,
+        type: isInt ? 'numerical' : 'mcq',
+        questionText: `Question ${q} Statement`,
+        options: isInt ? [] : [
+          { id: 'A', text: 'Option A' },
+          { id: 'B', text: 'Option B' },
+          { id: 'C', text: 'Option C' },
+          { id: 'D', text: 'Option D' },
+        ],
+        correctAnswer: answerKey[q] || (isInt ? '0' : 'A'),
+        solution: '',
+      });
+    }
+    setQuestions(list);
+  };
+
   // Horizon AI Auto-Formatting handler
   const handleAutoFormatWithGemini = async () => {
     if (!pdfFile && !testToEdit?.pdfUrl) {
@@ -551,39 +630,50 @@ export function TestFormModal({
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 pt-2 gap-2 text-xs font-bold flex-shrink-0">
+        <div className="flex border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 pt-2 gap-2 text-xs font-bold flex-shrink-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('details')}
-            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all ${
+            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all whitespace-nowrap ${
               activeTab === 'details'
                 ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
-            1. Test Details &amp; PDF
+            1. Details &amp; PDF
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('subjects')}
-            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all flex items-center gap-1.5 ${
+            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === 'subjects'
                 ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
-            2. Shuffle Subjects ({subjectOrder.map((s) => s.name[0]).join('→')})
+            2. Subjects ({subjectOrder.map((s) => s.name[0]).join('→')})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('questions')}
+            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'questions'
+                ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+            }`}
+          >
+            3. Formatted Questions ({questions.length}/{totalQuestions})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('answers')}
-            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all ${
+            className={`pb-2 px-3 border-b-2 cursor-pointer transition-all whitespace-nowrap ${
               activeTab === 'answers'
                 ? 'border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
-            3. Answer Key ({Object.keys(answerKey).length}/{totalQuestions})
+            4. Answer Key ({Object.keys(answerKey).length}/{totalQuestions})
           </button>
         </div>
 
@@ -982,7 +1072,228 @@ export function TestFormModal({
                   </div>
                 )}
 
-                {/* TAB 3: ANSWER KEY */}
+                {/* TAB 3: FORMATTED QUESTIONS (GEMINI AI PIPELINE) */}
+                {activeTab === 'questions' && (
+                  <div className="space-y-4">
+                    {/* Header Controls */}
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold text-gray-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                          <span>✨ Formatted Questions &amp; Formulas</span>
+                          <span className="text-xs bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded font-bold">
+                            {questions.length} / {totalQuestions}
+                          </span>
+                        </h3>
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">
+                          Questions formatted via Horizon AI / Gemini. You can review statements, LaTeX math, options, and explanations.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAutoFormatWithGemini}
+                          disabled={isGeminiFormatting}
+                          className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          {isGeminiFormatting ? '✨ Formatting with AI...' : '✨ Run AI Formatter'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleGenerateQuestionSkeletons}
+                          className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded text-xs font-semibold cursor-pointer"
+                        >
+                          Generate Skeletons
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter by Subject */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1">
+                      <span className="text-gray-500 dark:text-slate-400 font-semibold mr-1">Filter:</span>
+                      <button
+                        type="button"
+                        onClick={() => setQuestionFilterSubject('all')}
+                        className={`px-2.5 py-1 rounded font-bold transition-colors cursor-pointer ${
+                          questionFilterSubject === 'all'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        All ({questions.length})
+                      </button>
+                      {subjects.map((sub) => {
+                        const count = questions.filter((q) => q.subjectId === sub.id).length;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => setQuestionFilterSubject(sub.id)}
+                            className={`px-2.5 py-1 rounded font-bold transition-colors cursor-pointer ${
+                              questionFilterSubject === sub.id
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                            }`}
+                          >
+                            {sub.name} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Questions Empty State */}
+                    {questions.length === 0 ? (
+                      <div className="p-8 text-center bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-lg space-y-3">
+                        <div className="text-3xl">📄</div>
+                        <h4 className="font-bold text-gray-800 dark:text-slate-200 text-sm">
+                          No Structured Questions Yet
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 max-w-md mx-auto">
+                          Upload your Question Paper PDF in Step 1 and click <strong>&quot;Auto-Format Paper with Gemini AI&quot;</strong>.
+                          Gemini will extract all questions, mathematical formulas in LaTeX, choices, answer keys, and solutions automatically!
+                        </p>
+                        <div className="flex items-center justify-center gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={handleAutoFormatWithGemini}
+                            disabled={isGeminiFormatting}
+                            className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>✨ Auto-Format with Gemini AI</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleGenerateQuestionSkeletons}
+                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-semibold text-xs border border-slate-300 dark:border-slate-700 cursor-pointer"
+                          >
+                            Generate Placeholder Qs
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Question Cards List */
+                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                        {questions
+                          .filter((q) => questionFilterSubject === 'all' || q.subjectId === questionFilterSubject)
+                          .map((q) => {
+                            const isNumerical = q.type === 'numerical';
+                            return (
+                              <div
+                                key={q.questionNumber}
+                                className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-3.5 space-y-3 shadow-2xs"
+                              >
+                                {/* Card Header */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-sm text-blue-900 dark:text-blue-400">
+                                      Q.{q.questionNumber}
+                                    </span>
+                                    <span className="text-xs font-bold uppercase bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                                      {q.subjectId}
+                                    </span>
+                                    <span className="text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded">
+                                      {isNumerical ? 'Numerical' : 'MCQ'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                      <span>Correct Key:</span>
+                                      <input
+                                        type="text"
+                                        value={q.correctAnswer || ''}
+                                        onChange={(e) =>
+                                          handleUpdateQuestion(q.questionNumber, {
+                                            correctAnswer: e.target.value.toUpperCase().trim(),
+                                          })
+                                        }
+                                        placeholder={isNumerical ? 'e.g. 15' : 'A'}
+                                        className="w-14 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded font-black text-xs text-center text-emerald-900 dark:text-emerald-200"
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
+
+                                {/* Question Statement Editor & Live Math Preview */}
+                                <div className="space-y-1">
+                                  <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-400">
+                                    Question Text (LaTeX supported with $...$ or $$...$$):
+                                  </label>
+                                  <textarea
+                                    rows={2}
+                                    value={q.questionText || ''}
+                                    onChange={(e) =>
+                                      handleUpdateQuestion(q.questionNumber, { questionText: e.target.value })
+                                    }
+                                    placeholder="Enter question text. Formulas like $x^2 + y = 0$ will render with KaTeX."
+                                    className="w-full p-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs leading-relaxed"
+                                  />
+                                  {q.questionText && (
+                                    <div className="p-2 bg-slate-50 dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200">
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Live Math Preview:</span>
+                                      <MathText content={q.questionText} />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Options Editor (if MCQ) */}
+                                {!isNumerical && (
+                                  <div className="space-y-1.5 pt-1">
+                                    <span className="text-[11px] font-bold text-gray-600 dark:text-slate-400 block">
+                                      Options:
+                                    </span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {(['A', 'B', 'C', 'D'] as const).map((optId) => {
+                                        const optObj = q.options?.find((o) => o.id.toUpperCase() === optId);
+                                        return (
+                                          <div
+                                            key={optId}
+                                            className="flex items-center gap-1.5 p-1.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded text-xs"
+                                          >
+                                            <span className="font-bold text-slate-700 dark:text-slate-300 w-5">
+                                              ({optId})
+                                            </span>
+                                            <input
+                                              type="text"
+                                              value={optObj?.text || ''}
+                                              onChange={(e) =>
+                                                handleUpdateQuestionOption(q.questionNumber, optId, e.target.value)
+                                              }
+                                              placeholder={`Option ${optId} text`}
+                                              className="flex-1 px-2 py-0.5 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded text-xs"
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Solution / Explanation Editor */}
+                                <div className="space-y-1 pt-1">
+                                  <label className="block text-[11px] font-bold text-blue-900 dark:text-blue-400">
+                                    💡 Step-by-Step Solution / Explanation:
+                                  </label>
+                                  <textarea
+                                    rows={1}
+                                    value={q.solution || ''}
+                                    onChange={(e) =>
+                                      handleUpdateQuestion(q.questionNumber, { solution: e.target.value })
+                                    }
+                                    placeholder="Explanation shown in student test analysis..."
+                                    className="w-full p-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded text-xs leading-relaxed"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 4: ANSWER KEY */}
                 {activeTab === 'answers' && (
                   <div className="space-y-3">
                     {pdfPreviewUrl && (
@@ -1037,7 +1348,8 @@ export function TestFormModal({
                     <button
                       type="button"
                       onClick={() => {
-                        if (activeTab === 'answers') setActiveTab('subjects');
+                        if (activeTab === 'answers') setActiveTab('questions');
+                        else if (activeTab === 'questions') setActiveTab('subjects');
                         else if (activeTab === 'subjects') setActiveTab('details');
                       }}
                       className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 font-medium text-xs cursor-pointer rounded"
@@ -1072,6 +1384,8 @@ export function TestFormModal({
                           setError(null);
                           setActiveTab('subjects');
                         } else if (activeTab === 'subjects') {
+                          setActiveTab('questions');
+                        } else if (activeTab === 'questions') {
                           setActiveTab('answers');
                         }
                       }}

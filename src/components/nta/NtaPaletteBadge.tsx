@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { QuestionStatus } from '@/lib/types';
 
@@ -29,9 +31,9 @@ export function NtaPaletteBadge({
 
   switch (status) {
     case 'not_visited':
-      bgColor = '#e5e7eb';
-      textColor = '#374151';
-      borderColor = '#9ca3af';
+      bgColor = '#e2e8f0';
+      textColor = '#334155';
+      borderColor = '#94a3b8';
       clipPath = 'none';
       borderRadius = '2px';
       break;
@@ -45,7 +47,7 @@ export function NtaPaletteBadge({
       break;
 
     case 'answered':
-      bgColor = '#388e3c';
+      bgColor = '#2e7d32';
       textColor = '#ffffff';
       borderColor = 'transparent';
       clipPath = 'polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
@@ -95,11 +97,11 @@ export function NtaPaletteBadge({
         padding: 0,
         fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
       }}
-      title={`Question ${number}`}
+      title={`Question ${number} (${status.replace(/_/g, ' ')})`}
     >
       <span>{number}</span>
 
-      {/* Green corner square for answered_and_marked */}
+      {/* Green corner square indicator for answered_and_marked */}
       {showGreenDot && (
         <span
           style={{
@@ -108,8 +110,8 @@ export function NtaPaletteBadge({
             right: '-1px',
             width: '8px',
             height: '8px',
-            background: '#388e3c',
-            border: '1px solid white',
+            background: '#2e7d32',
+            border: '1.5px solid white',
             borderRadius: '1px',
           }}
         />
@@ -121,20 +123,22 @@ export function NtaPaletteBadge({
 export function NtaLegendBadge({
   status,
   label,
+  count,
 }: {
   status: QuestionStatus;
   label: string;
+  count?: number;
 }) {
-  let bgColor = '#e5e7eb';
+  let bgColor = '#e2e8f0';
   let clipPath = 'none';
   let borderRadius = '2px';
-  let border = '1px solid #9ca3af';
+  let border = '1px solid #94a3b8';
   let showGreenDot = false;
 
   switch (status) {
     case 'not_visited':
-      bgColor = '#e5e7eb';
-      border = '1px solid #9ca3af';
+      bgColor = '#e2e8f0';
+      border = '1px solid #94a3b8';
       break;
 
     case 'not_answered':
@@ -144,7 +148,7 @@ export function NtaLegendBadge({
       break;
 
     case 'answered':
-      bgColor = '#388e3c';
+      bgColor = '#2e7d32';
       clipPath = 'polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%)';
       border = 'none';
       break;
@@ -168,15 +172,22 @@ export function NtaLegendBadge({
       <div
         style={{
           position: 'relative',
-          width: '20px',
-          height: '20px',
+          width: '24px',
+          height: '24px',
           background: bgColor,
           clipPath: clipPath !== 'none' ? clipPath : undefined,
           borderRadius: borderRadius,
           border: border,
           flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: status === 'not_visited' ? '#334155' : '#ffffff',
+          fontWeight: 700,
+          fontSize: '11px',
         }}
       >
+        {count !== undefined && <span>{count}</span>}
         {showGreenDot && (
           <span
             style={{
@@ -185,21 +196,14 @@ export function NtaLegendBadge({
               right: '-1px',
               width: '7px',
               height: '7px',
-              background: '#388e3c',
+              background: '#2e7d32',
               border: '1px solid white',
               borderRadius: '1px',
             }}
           />
         )}
       </div>
-      <span
-        style={{
-          fontSize: '11px',
-          color: '#4b5563',
-          lineHeight: '1.2',
-          fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-        }}
-      >
+      <span className="text-[11px] text-slate-700 dark:text-slate-300 leading-tight font-sans">
         {label}
       </span>
     </div>

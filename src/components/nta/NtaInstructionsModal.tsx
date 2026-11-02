@@ -19,169 +19,101 @@ export function NtaInstructionsModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-    >
-      <div
-        style={{
-          background: 'white',
-          border: '2px solid #1e4273',
-          borderRadius: '3px',
-          maxWidth: '640px',
-          width: '95%',
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-2xs animate-fade-in select-none">
+      <div className="bg-white dark:bg-slate-900 border-2 border-[#1e4273] dark:border-blue-600 rounded-md max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl transition-colors">
         {/* Header */}
-        <div
-          style={{
-            background: '#1e4273',
-            color: 'white',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexShrink: 0,
-          }}
-        >
-          <h2 style={{ fontSize: '14px', fontWeight: 700 }}>Examination Instructions</h2>
+        <div className="bg-[#1e4273] dark:bg-slate-800 text-white px-4 py-3 flex items-center justify-between shrink-0">
+          <h2 className="text-sm sm:text-base font-bold flex items-center gap-2">
+            <span>📖</span>
+            <span>EXAMINATION INSTRUCTIONS</span>
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'white',
-              fontSize: '16px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              padding: '0 4px',
-              opacity: 0.8,
-            }}
+            className="text-white hover:text-red-200 text-sm font-bold cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {/* Content */}
-        <div
-          style={{
-            padding: '16px',
-            overflowY: 'auto',
-            fontSize: '12px',
-            color: '#424242',
-            lineHeight: '1.6',
-            flex: 1,
-          }}
-        >
-          <div style={{ marginBottom: '14px' }}>
-            <h3 style={{ fontWeight: 700, color: '#0d47a1', marginBottom: '6px', fontSize: '13px' }}>
-              General Instructions:
+        <div className="p-4 sm:p-5 overflow-y-auto text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1 space-y-4">
+          <div>
+            <h3 className="font-extrabold text-blue-900 dark:text-blue-400 mb-2 text-sm">
+              1. General Examination Instructions:
             </h3>
-            <ol style={{ paddingLeft: '20px', listStyleType: 'decimal' }}>
-              <li style={{ marginBottom: '6px' }}>
-                Total duration of the examination is <strong>{durationMinutes} minutes</strong> (3 hours).
+            <ol className="list-decimal pl-5 space-y-1.5">
+              <li>
+                Total duration of the examination is <strong>{durationMinutes} minutes</strong>.
               </li>
-              <li style={{ marginBottom: '6px' }}>
-                The countdown clock in the top right corner displays the remaining time available to you.
-                When the timer reaches zero, the examination will end automatically.
+              <li>
+                The countdown timer in the top header indicates your remaining time. The test submits automatically when the timer reaches zero.
               </li>
-              <li style={{ marginBottom: '6px' }}>
-                The Question Palette displayed on the right side of screen will show the status of each
-                question using one of the following symbols:
+              <li>
+                Your answers are automatically saved locally, ensuring your progress is never lost even if you accidentally refresh or lose connection.
               </li>
             </ol>
           </div>
 
-          {/* Palette Legend */}
-          <div
-            style={{
-              border: '1px solid #e0e0e0',
-              borderRadius: '2px',
-              padding: '10px 14px',
-              background: '#fafafa',
-              marginBottom: '14px',
-            }}
-          >
-            <div className="flex items-center gap-3" style={{ marginBottom: '8px' }}>
-              <NtaPaletteBadge number={1} status="not_visited" size="sm" />
-              <span>You have not visited the question yet.</span>
-            </div>
-            <div className="flex items-center gap-3" style={{ marginBottom: '8px' }}>
-              <NtaPaletteBadge number={2} status="not_answered" size="sm" />
-              <span>You have not answered the question.</span>
-            </div>
-            <div className="flex items-center gap-3" style={{ marginBottom: '8px' }}>
-              <NtaPaletteBadge number={3} status="answered" size="sm" />
-              <span>You have answered the question.</span>
-            </div>
-            <div className="flex items-center gap-3" style={{ marginBottom: '8px' }}>
-              <NtaPaletteBadge number={4} status="marked_for_review" size="sm" />
-              <span>You have NOT answered the question, but have marked the question for review.</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <NtaPaletteBadge number={5} status="answered_and_marked" size="sm" />
-              <span>The question is answered and marked for review (will be considered for evaluation).</span>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '14px' }}>
-            <h3 style={{ fontWeight: 700, color: '#0d47a1', marginBottom: '6px', fontSize: '13px' }}>
-              Marking Scheme:
-            </h3>
-            <ul style={{ paddingLeft: '20px', listStyleType: 'disc' }}>
-              <li style={{ marginBottom: '4px' }}>
-                For each correct answer: <strong style={{ color: '#2e7d32' }}>+{markingScheme.correct} marks</strong>
-              </li>
-              <li style={{ marginBottom: '4px' }}>
-                For each incorrect answer: <strong style={{ color: '#c62828' }}>{markingScheme.incorrect} mark</strong>
-              </li>
-              <li style={{ marginBottom: '4px' }}>
-                For unattempted questions: <strong>{markingScheme.unattempted} marks</strong>
-              </li>
-            </ul>
-          </div>
-
+          {/* Palette Legend Explanation */}
           <div>
-            <h3 style={{ fontWeight: 700, color: '#0d47a1', marginBottom: '6px', fontSize: '13px' }}>
-              Navigating to a Question:
+            <h3 className="font-extrabold text-blue-900 dark:text-blue-400 mb-2 text-sm">
+              2. Question Palette Symbols &amp; Meaning:
             </h3>
-            <p>
-              To answer a question, you may click on the question number in the Question Palette directly,
-              or use the Previous and Next controls. Click <strong>Save &amp; Next</strong> to save your answer.
-              Click <strong>Clear Response</strong> to deselect an answered option.
-            </p>
+            <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded p-3 bg-slate-50 dark:bg-slate-950/60">
+              <div className="flex items-center gap-3">
+                <NtaPaletteBadge number={1} status="not_visited" size="sm" />
+                <span>You have not visited the question yet.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <NtaPaletteBadge number={2} status="not_answered" size="sm" />
+                <span>You have not answered the question.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <NtaPaletteBadge number={3} status="answered" size="sm" />
+                <span>You have answered the question.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <NtaPaletteBadge number={4} status="marked_for_review" size="sm" />
+                <span>You have NOT answered the question, but marked it for review.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <NtaPaletteBadge number={5} status="answered_and_marked" size="sm" />
+                <span>
+                  The question is <strong>Answered and Marked for Review</strong> (it <em>will be evaluated</em>).
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Marking Scheme */}
+          <div>
+            <h3 className="font-extrabold text-blue-900 dark:text-blue-400 mb-2 text-sm">
+              3. Marking Scheme:
+            </h3>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                <span className="block text-[11px] text-emerald-800 dark:text-emerald-300 font-bold uppercase">Correct Answer</span>
+                <span className="text-base font-black text-emerald-700 dark:text-emerald-400">+{markingScheme.correct} Marks</span>
+              </div>
+              <div className="p-2.5 rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800">
+                <span className="block text-[11px] text-red-800 dark:text-red-300 font-bold uppercase">Incorrect Answer</span>
+                <span className="text-base font-black text-red-600 dark:text-red-400">{markingScheme.incorrect} Mark</span>
+              </div>
+              <div className="p-2.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                <span className="block text-[11px] text-slate-600 dark:text-slate-400 font-bold uppercase">Unattempted</span>
+                <span className="text-base font-black text-slate-700 dark:text-slate-300">{markingScheme.unattempted} Marks</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            background: '#eceff1',
-            padding: '10px 16px',
-            borderTop: '1px solid #bdbdbd',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            flexShrink: 0,
-          }}
-        >
+        <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
-            style={{
-              padding: '6px 20px',
-              fontSize: '12px',
-              fontWeight: 700,
-              background: '#1565c0',
-              color: 'white',
-              border: '1px solid #0d47a1',
-              borderRadius: '2px',
-              cursor: 'pointer',
-            }}
+            className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded uppercase tracking-wider cursor-pointer transition-colors"
           >
             Close Instructions
           </button>
