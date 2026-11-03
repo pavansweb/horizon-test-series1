@@ -14,7 +14,10 @@ import {
   RefreshCwIcon,
   BarChartIcon,
   CalendarIcon,
+  FolderIcon,
+  FolderPlusIcon,
 } from '@/components/icons/Icons';
+import { DEFAULT_FOLDERS, getTestDefaultFolder } from '@/lib/folder-constants';
 
 function formatUploadDateTime(dateStr?: string): string {
   if (!dateStr) return '';
@@ -62,6 +65,19 @@ export default function AdminDashboardPage() {
   // Upload/Edit Modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [testToEdit, setTestToEdit] = useState<Test | null>(null);
+
+  // Folder Management State
+  const [folders, setFolders] = useState<string[]>(DEFAULT_FOLDERS);
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
+  const [isFolderManagerOpen, setIsFolderManagerOpen] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [folderActionError, setFolderActionError] = useState<string>('');
+
+  // Move Test to Folder State
+  const [movingTest, setMovingTest] = useState<Test | null>(null);
+  const [selectedTargetFolder, setSelectedTargetFolder] = useState<string>('Home');
+  const [inlineNewFolder, setInlineNewFolder] = useState<string>('');
+  const [isSavingMove, setIsSavingMove] = useState<boolean>(false);
 
   // Theme state (Dark Mode)
   const [isDark, setIsDark] = useState<boolean>(false);
@@ -161,10 +177,117 @@ export default function AdminDashboardPage() {
     }
   }, [router]);
 
+  const fetchFolders = useCallback(async () => {
+    try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) headers['x-admin-token'] = token;
+
+      const res = await fetch('/api/admin/folders', {
+        headers,
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (Array.isArray(data.folders)) setFolders(data.folders);
+          if (Array.isArray(data.customFolders)) setCustomFolders(data.customFolders);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching admin folders:', err);
+    }
+  }, []);
+
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newFolderName.trim();
+    if (!trimmed) {
+      setFolderActionError('Please enter a folder name');
+      return;
+    }
+    try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-admin-token'] = token;
+
+      const res = await fetch('/api/admin/folders', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNewFolderName('');
+        setFolderActionError('');
+        if (Array.isArray(data.folders)) setFolders(data.folders);
+        if (Array.isArray(data.customFolders)) setCustomFolders(data.customFolders);
+      } else {
+        setFolderActionError(data.error || 'Failed to create folder');
+      }
+    } catch {
+      setFolderActionError('Network error while creating folder');
+    }
+  };
+
+  const handleDeleteCustomFolder = async (folderName: string) => {
+    if (!confirm(`Delete folder "${folderName}"? Tests assigned to it will default to Home.`)) return;
+    try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) headers['x-admin-token'] = token;
+
+      const res = await fetch(`/api/admin/folders?name=${encodeURIComponent(folderName)}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (Array.isArray(data.folders)) setFolders(data.folders);
+        if (Array.isArray(data.customFolders)) setCustomFolders(data.customFolders);
+        await fetchTests();
+      } else {
+        alert(data.error || 'Failed to delete folder');
+      }
+    } catch {
+      alert('Network error while deleting folder');
+    }
+  };
+
+  const handleAssignTestFolder = async (testId: string, targetFolder: string | null) => {
+    try {
+      setIsSavingMove(true);
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-admin-token'] = token;
+
+      const res = await fetch(`/api/admin/tests/${testId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ folder: targetFolder }),
+      });
+
+      if (res.ok) {
+        setMovingTest(null);
+        await fetchTests();
+        await fetchFolders();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to assign folder to test');
+      }
+    } catch (err) {
+      console.error('Error updating test folder:', err);
+      alert('Network error while assigning folder');
+    } finally {
+      setIsSavingMove(false);
+    }
+  };
+
   useEffect(() => {
     fetchTests();
     fetchSubmissions();
-  }, [fetchTests, fetchSubmissions]);
+    fetchFolders();
+  }, [fetchTests, fetchSubmissions, fetchFolders]);
 
   const handleLogout = async () => {
     try {
@@ -440,6 +563,20 @@ export default function AdminDashboardPage() {
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={() => {
+                    setIsFolderManagerOpen(true);
+                    setFolderActionError('');
+                    setNewFolderName('');
+                  }}
+                  className="px-3 py-2 border border-amber-300 dark:border-amber-700/80 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold text-xs sm:text-sm rounded-lg flex items-center gap-1.5 cursor-pointer transition-all"
+                  title="Manage mock test folders"
+                >
+                  <FolderPlusIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Folders ({folders.length})</span>
+                </button>
+
+                <button
                   onClick={() => fetchTests()}
                   className="p-2 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 cursor-pointer transition-colors"
                   title="Refresh test papers list"
@@ -544,6 +681,34 @@ export default function AdminDashboardPage() {
                           {test.title}
                         </h3>
 
+                        {/* Folder Row */}
+                        <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50">
+                          <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                            <FolderIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span>Folder:</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = test.folder !== undefined && test.folder !== null
+                                ? (test.folder === 'Home' || test.folder === '' ? 'Home' : test.folder)
+                                : (getTestDefaultFolder(test.title) || 'Home');
+                              setMovingTest(test);
+                              setSelectedTargetFolder(curr);
+                              setInlineNewFolder('');
+                            }}
+                            className="text-[11px] font-bold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-amber-100 flex items-center gap-1 cursor-pointer bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800 hover:bg-amber-50"
+                            title="Click to assign or change folder"
+                          >
+                            <span>
+                              {test.folder !== undefined && test.folder !== null
+                                ? (test.folder === 'Home' || test.folder === '' ? '🏠 Home (Unassigned)' : test.folder)
+                                : (getTestDefaultFolder(test.title) || '🏠 Home (Unassigned)')}
+                            </span>
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400">✎</span>
+                          </button>
+                        </div>
+
                         {/* Proofreading field & Interactive Checkbox */}
                         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -638,6 +803,22 @@ export default function AdminDashboardPage() {
                               <span>✨ Format ({unformattedCount})</span>
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = test.folder !== undefined && test.folder !== null
+                                ? (test.folder === 'Home' || test.folder === '' ? 'Home' : test.folder)
+                                : (getTestDefaultFolder(test.title) || 'Home');
+                              setMovingTest(test);
+                              setSelectedTargetFolder(curr);
+                              setInlineNewFolder('');
+                            }}
+                            className="p-1.5 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg transition-all cursor-pointer"
+                            title="Assign to Folder"
+                          >
+                            <FolderIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
@@ -891,6 +1072,253 @@ export default function AdminDashboardPage() {
         }}
         testToEdit={testToEdit}
       />
+
+      {/* ========================================================================= */}
+      {/* ADMIN FOLDER MANAGER MODAL                                                */}
+      {/* ========================================================================= */}
+      {isFolderManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-extrabold text-base">
+                <FolderIcon className="w-5 h-5 text-amber-500 fill-amber-500/20" />
+                <span>Manage Mock Test Folders</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFolderManagerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold leading-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Create new folder form */}
+            <form onSubmit={handleCreateFolder} className="space-y-3">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Create New Folder
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Resonance, FIITJEE, Narayana..."
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="flex-1 px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                >
+                  + Add
+                </button>
+              </div>
+              {folderActionError && (
+                <p className="text-xs text-red-600 font-semibold">{folderActionError}</p>
+              )}
+            </form>
+
+            {/* Current Folders List */}
+            <div className="space-y-2">
+              <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Active Folders ({folders.length})
+              </span>
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
+                {folders.map((f) => {
+                  const isCustom = customFolders.includes(f);
+                  const count = tests.filter((t) => {
+                    if (t.folder !== undefined && t.folder !== null) return t.folder === f;
+                    return getTestDefaultFolder(t.title) === f;
+                  }).length;
+
+                  return (
+                    <div
+                      key={f}
+                      className="flex items-center justify-between py-2 text-xs text-slate-800 dark:text-slate-200"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FolderIcon className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                        <span className="font-bold">{f}</span>
+                        <span className="text-[11px] text-slate-400">({count} tests)</span>
+                      </div>
+
+                      {isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomFolder(f)}
+                          className="text-red-600 hover:text-red-700 text-xs font-semibold px-2 py-0.5 rounded hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors cursor-pointer"
+                          title="Delete custom folder"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsFolderManagerOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ADMIN ASSIGN TEST TO FOLDER MODAL                                         */}
+      {/* ========================================================================= */}
+      {movingTest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-extrabold text-base">
+                <FolderIcon className="w-5 h-5 text-amber-500 fill-amber-500/20" />
+                <span>Assign Test to Folder</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMovingTest(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold leading-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                Target Test Paper
+              </span>
+              <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                {movingTest.title}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Choose Folder
+              </label>
+
+              <div className="max-h-60 overflow-y-auto space-y-1.5 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
+                {/* Option 1: Home (Unassigned) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTargetFolder('Home');
+                    setInlineNewFolder('');
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                    selectedTargetFolder === 'Home'
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 font-bold border border-blue-300 dark:border-blue-800'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span>🏠</span>
+                    <span>Home (No Folder / Unassigned)</span>
+                  </span>
+                  {selectedTargetFolder === 'Home' && <span className="text-blue-600 font-black">✓</span>}
+                </button>
+
+                {/* Available Folders */}
+                {folders.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTargetFolder(f);
+                      setInlineNewFolder('');
+                    }}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                      selectedTargetFolder === f
+                        ? 'bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 font-bold border border-blue-300 dark:border-blue-800'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <FolderIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+                      <span>{f}</span>
+                    </span>
+                    {selectedTargetFolder === f && <span className="text-blue-600 font-black">✓</span>}
+                  </button>
+                ))}
+
+                {/* Option: Create and assign to new folder */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTargetFolder('__new__')}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                    selectedTargetFolder === '__new__'
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 font-bold border border-blue-300 dark:border-blue-800'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <FolderPlusIcon className="w-3.5 h-3.5" />
+                    <span>+ Create New Folder &amp; Assign</span>
+                  </span>
+                  {selectedTargetFolder === '__new__' && <span className="text-blue-600 font-black">✓</span>}
+                </button>
+              </div>
+
+              {selectedTargetFolder === '__new__' && (
+                <div className="pt-2 animate-in fade-in duration-100">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    New Folder Name:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter folder name..."
+                    value={inlineNewFolder}
+                    onChange={(e) => setInlineNewFolder(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMovingTest(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                disabled={isSavingMove}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  let target: string | null = selectedTargetFolder;
+                  if (target === '__new__') {
+                    const trimmed = inlineNewFolder.trim();
+                    if (!trimmed) {
+                      alert('Please enter a folder name');
+                      return;
+                    }
+                    target = trimmed;
+                  } else if (target === 'Home') {
+                    target = null;
+                  }
+                  await handleAssignTestFolder(movingTest.id, target);
+                }}
+                disabled={isSavingMove}
+                className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {isSavingMove ? 'Saving...' : 'Save Folder Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,8 @@ export async function GET() {
       return {
         id: t.id,
         title: t.title,
+        folder: t.folder,
+        isProofread: Boolean(t.isProofread),
         duration: t.duration,
         totalMarks: t.totalMarks,
         pdfUrl: t.pdfUrl,

@@ -124,6 +124,12 @@ function hydrateTest(row: DbRow | Test): Test {
     ...(r as unknown as Test),
     id: (r.id as string) || crypto.randomUUID(),
     title: (r.title as string) || 'Untitled Test',
+    folder:
+      r.folder !== undefined && r.folder !== null
+        ? (r.folder as string)
+        : markingScheme._folder !== undefined && markingScheme._folder !== null
+        ? (markingScheme._folder as string)
+        : undefined,
     duration: typeof r.duration === 'number' ? r.duration : 180,
     totalMarks: typeof r.totalMarks === 'number' ? r.totalMarks : 300,
     pdfUrl: (r.pdfUrl as string) || '',
@@ -179,6 +185,7 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
       ...rest,
       markingScheme: {
         ...test.markingScheme,
+        _folder: test.folder ?? null,
         _questions: questions || [],
         _isProofread: isProofread ?? false,
       },
@@ -189,6 +196,7 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
     ...base,
     markingScheme: {
       ...test.markingScheme,
+      _folder: test.folder ?? null,
       _integerQuestions: integerQuestions || [],
       _pdfStartPage: pdfStartPage || 1,
       _pdfEndPage: pdfEndPage || null,
@@ -298,6 +306,7 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
   const publicTest: PublicTest = {
     id: test.id,
     title: test.title,
+    folder: test.folder,
     duration: test.duration,
     totalMarks: test.totalMarks,
     pdfUrl: test.pdfUrl,

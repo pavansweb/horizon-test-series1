@@ -13,6 +13,7 @@ import {
 } from '@/components/icons/Icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { MathText } from '@/components/MathText';
+import { ExportResultModal } from '@/components/ExportResultModal';
 
 export default function ResultPage({
   params,
@@ -28,6 +29,7 @@ export default function ResultPage({
   const [selectedQNumber, setSelectedQNumber] = useState<number>(1);
   const [statusFilter, setStatusFilter] = useState<'all' | 'correct' | 'incorrect' | 'unattempted'>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadResult() {
@@ -144,15 +146,23 @@ export default function ResultPage({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-3.5 py-1.5 text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>📤</span>
+              <span>Export Result</span>
+            </button>
             <a
               href="#paper-review-section"
-              className="px-3.5 py-1.5 text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white rounded shadow-xs transition-all flex items-center gap-1.5"
+              className="px-3.5 py-1.5 text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white rounded-lg shadow-xs transition-all flex items-center gap-1.5"
             >
               <span>Verify Answers with PDF ↓</span>
             </a>
             <Link
               href="/"
-              className="px-4 py-1.5 text-xs font-bold bg-white text-[#1e3a8a] hover:bg-blue-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:border dark:border-slate-700 rounded shadow-xs transition-all"
+              className="px-4 py-1.5 text-xs font-bold bg-white text-[#1e3a8a] hover:bg-blue-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:border dark:border-slate-700 rounded-lg shadow-xs transition-all"
             >
               All Tests
             </Link>
@@ -183,10 +193,18 @@ export default function ResultPage({
                 </h2>
               </div>
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <span className="text-xs px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 font-semibold">
                 Exam Paper: {result.testTitle}
               </span>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-xs rounded-md shadow-xs cursor-pointer flex items-center gap-1.5 transition-all"
+              >
+                <span>🤖</span>
+                <span>Export for AI Analysis</span>
+              </button>
             </div>
           </div>
 
@@ -255,6 +273,36 @@ export default function ResultPage({
               <div className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Duration: {result.durationMinutes} minutes
               </div>
+            </div>
+          </div>
+
+          {/* AI Analysis Quick Action Banner */}
+          <div className="p-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-xl shadow-md border border-indigo-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                🤖
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                  <span>Analyze this Mock Test with AI</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded border border-indigo-400/40">
+                    ChatGPT • Claude • Gemini
+                  </span>
+                </h3>
+                <p className="text-xs text-indigo-200/90 mt-0.5 max-w-2xl leading-relaxed">
+                  Export formatted AI prompts with all your incorrect questions, answer comparisons, and solutions, or download the raw JSON dataset to upload directly to any AI chat.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="w-full sm:w-auto px-4 py-2.5 bg-white text-indigo-900 hover:bg-blue-50 font-black text-xs rounded-lg shadow-sm cursor-pointer flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>📤</span>
+                <span>Export for AI Analysis</span>
+              </button>
             </div>
           </div>
 
@@ -667,6 +715,14 @@ export default function ResultPage({
           </div>
         </section>
       </main>
+
+      {result && (
+        <ExportResultModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          result={result}
+        />
+      )}
     </div>
   );
 }

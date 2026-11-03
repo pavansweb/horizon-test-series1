@@ -8,12 +8,16 @@ interface NtaHeaderProps {
   timeRemainingSeconds: number;
   onSubmitTest?: () => void;
   onEditName?: () => void;
+  isPaused?: boolean;
+  onTogglePause?: () => void;
 }
 
 export function NtaHeader({
   candidateName = 'JEE Aspirant',
   timeRemainingSeconds,
   onEditName,
+  isPaused = false,
+  onTogglePause,
 }: NtaHeaderProps) {
   const [isDark, setIsDark] = React.useState<boolean>(false);
 
@@ -180,21 +184,57 @@ export function NtaHeader({
               <span
                 style={{
                   marginLeft: '8px',
-                  background: isDark ? '#134e4a' : '#e0f7fa',
-                  border: `2px solid ${isDark ? '#14b8a6' : '#00bcd4'}`,
+                  background: isPaused ? (isDark ? '#451a03' : '#fef3c7') : (isDark ? '#134e4a' : '#e0f7fa'),
+                  border: `2px solid ${isPaused ? '#f59e0b' : (isDark ? '#14b8a6' : '#00bcd4')}`,
                   borderRadius: '14px',
                   padding: '2px 14px',
                   fontFamily: 'monospace',
                   fontWeight: 800,
                   fontSize: '15.5px',
-                  color: isDark ? '#2dd4bf' : '#00838f',
+                  color: isPaused ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#2dd4bf' : '#00838f'),
                   letterSpacing: '1px',
                   display: 'inline-flex',
                   alignItems: 'center',
+                  transition: 'all 0.2s',
                 }}
               >
                 {formatTime(timeRemainingSeconds)}
               </span>
+
+              {onTogglePause && (
+                <button
+                  type="button"
+                  onClick={onTogglePause}
+                  title={isPaused ? 'Resume Examination' : 'Pause Examination'}
+                  aria-label={isPaused ? 'Resume Examination' : 'Pause Examination'}
+                  style={{
+                    marginLeft: '8px',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    border: `1.5px solid ${isPaused ? '#f59e0b' : (isDark ? '#475569' : '#cbd5e1')}`,
+                    background: isPaused ? (isDark ? '#78350f' : '#fef3c7') : (isDark ? '#1e293b' : '#f8fafc'),
+                    color: isPaused ? '#f59e0b' : (isDark ? '#cbd5e1' : '#475569'),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  {isPaused ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  ) : (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

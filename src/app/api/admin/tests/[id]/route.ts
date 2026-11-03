@@ -29,6 +29,7 @@ export async function PUT(
 
     const updated = await updateTest(id, {
       title: body.title !== undefined ? body.title : existing.title,
+      folder: body.folder !== undefined ? body.folder : existing.folder,
       duration: body.duration !== undefined ? Number(body.duration) : existing.duration,
       totalMarks: autoTotalMarks,
       pdfStartPage: body.pdfStartPage !== undefined ? Number(body.pdfStartPage) : existing.pdfStartPage,

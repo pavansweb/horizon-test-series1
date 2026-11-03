@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PublicTest } from '@/lib/types';
 import { NtaPaletteBadge } from './NtaPaletteBadge';
 
@@ -21,6 +21,7 @@ export function NtaInstructionsScreen({
   const [isDeclared, setIsDeclared] = useState<boolean>(false);
   const [nameError, setNameError] = useState<string>('');
   const [declarationError, setDeclarationError] = useState<string>('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -42,6 +43,7 @@ export function NtaInstructionsScreen({
     const trimmed = candidateName.trim();
     if (!trimmed) {
       setNameError('Please enter your candidate name before proceeding.');
+      nameInputRef.current?.focus();
       return;
     }
     if (!isDeclared) {
@@ -76,37 +78,17 @@ export function NtaInstructionsScreen({
         </button>
       </header>
 
-      {/* Candidate Verification Bar */}
-      <div className="bg-slate-100 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 py-3.5">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex-1">
-            <label htmlFor="inst-candidate-name" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Candidate Full Name <span className="text-red-500">*</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="inst-candidate-name"
-                type="text"
-                autoFocus
-                placeholder="Enter your name (e.g. Rahul Sharma)"
-                value={candidateName}
-                onChange={(e) => {
-                  setCandidateName(e.target.value);
-                  if (nameError) setNameError('');
-                }}
-                className={`w-full sm:max-w-md px-3.5 py-1.5 text-sm rounded border bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                  nameError ? 'border-red-500 focus:ring-red-400' : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500'
-                }`}
-              />
-            </div>
-            {nameError && (
-              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">{nameError}</p>
-            )}
+      {/* Test Overview Sub-Header */}
+      <div className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 py-3">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 truncate">
+            <span className="font-semibold text-slate-500 dark:text-slate-400 shrink-0">Selected Examination:</span>
+            <span className="font-bold text-slate-900 dark:text-slate-100 truncate text-sm">{test.title}</span>
           </div>
-
-          <div className="text-xs text-slate-600 dark:text-slate-400 sm:text-right shrink-0">
-            <span className="font-bold text-slate-800 dark:text-slate-200 block truncate max-w-xs">{test.title}</span>
-            <span>Duration: {test.duration} mins • Total Marks: {test.totalMarks}</span>
+          <div className="text-slate-600 dark:text-slate-400 flex items-center gap-3 shrink-0">
+            <span>Duration: <strong className="text-slate-800 dark:text-slate-200">{test.duration} mins</strong></span>
+            <span>•</span>
+            <span>Total Marks: <strong className="text-slate-800 dark:text-slate-200">{test.totalMarks}</strong></span>
           </div>
         </div>
       </div>
@@ -252,6 +234,65 @@ export function NtaInstructionsScreen({
         </p>
 
         <hr className="border-slate-300 dark:border-slate-700 my-4" />
+
+        {/* Candidate Name Input Section - Prominently positioned just above Declaration Checkbox */}
+        <section
+          aria-labelledby="candidate-name-heading"
+          className={`p-4 sm:p-5 rounded-xl border-2 transition-all ${
+            nameError
+              ? 'bg-red-50/90 dark:bg-red-950/40 border-red-400 dark:border-red-700 shadow-sm'
+              : 'bg-blue-50/70 dark:bg-slate-800/90 border-blue-200 dark:border-blue-900/60 shadow-sm'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span className="w-9 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </span>
+            <div className="flex-1">
+              <label
+                id="candidate-name-heading"
+                htmlFor="inst-candidate-name"
+                className="block text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100"
+              >
+                Enter Candidate Name <span className="text-red-500 font-extrabold">*</span>
+              </label>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 mb-2.5">
+                This name will appear on your examination screen, question palette, and official score report.
+              </p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  ref={nameInputRef}
+                  id="inst-candidate-name"
+                  type="text"
+                  placeholder="Enter your name (e.g. Rahul Sharma)"
+                  value={candidateName}
+                  onChange={(e) => {
+                    setCandidateName(e.target.value);
+                    if (nameError) setNameError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleProceedClick();
+                    }
+                  }}
+                  className={`w-full sm:max-w-md px-3.5 py-2.5 text-sm sm:text-base rounded-lg border-2 font-medium bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-4 transition-all ${
+                    nameError
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-100 dark:focus:ring-red-900/40'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-blue-600 dark:focus:border-blue-400 focus:ring-blue-100 dark:focus:ring-blue-900/40'
+                  }`}
+                />
+              </div>
+              {nameError && (
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1.5 flex items-center gap-1.5">
+                  <span>⚠</span> {nameError}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Declaration Checkbox */}
         <div className="space-y-2">

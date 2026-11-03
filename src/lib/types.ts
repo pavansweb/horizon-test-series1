@@ -51,6 +51,7 @@ export interface PublicQuestion {
 export interface Test {
   id: string;
   title: string;
+  folder?: string | null;
   duration: number; // in minutes
   totalMarks: number;
   pdfUrl: string;
@@ -72,6 +73,7 @@ export interface Test {
 export interface PublicTest {
   id: string;
   title: string;
+  folder?: string | null;
   duration: number;
   totalMarks: number;
   pdfUrl: string;

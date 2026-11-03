@@ -45,6 +45,7 @@ export default function TestAttemptPage({
 
   // Timer
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number>(180 * 60);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Palette collapse toggle (for the '>' toggle button on divider)
@@ -431,15 +432,19 @@ export default function TestAttemptPage({
         timeRemainingSeconds={timeRemainingSeconds}
         onSubmitTest={() => setIsSubmitModalOpen(true)}
         onEditName={handleOpenEditName}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused((prev) => !prev)}
       />
 
-      {/* 2. Dark Navy Subject Navigation Bar */}
-      <NtaSubjectBar
-        subjects={test.subjects}
-        activeSubjectId={activeSubjectId}
-        activeFilter={activeFilter}
-        onSelectFilter={handleSelectFilter}
-      />
+      {/* Main Examination View Area (wrapper with relative position for paused overlay) */}
+      <div className="relative flex-1 flex flex-col overflow-hidden min-h-0">
+        {/* 2. Dark Navy Subject Navigation Bar */}
+        <NtaSubjectBar
+          subjects={test.subjects}
+          activeSubjectId={activeSubjectId}
+          activeFilter={activeFilter}
+          onSelectFilter={handleSelectFilter}
+        />
 
       {/* 3. Outer Canvas */}
       <div className="outer-canvas-wrap flex-1 flex flex-col overflow-hidden min-h-0 p-2 sm:p-3 md:p-4 bg-slate-200 dark:bg-slate-950 transition-colors">
@@ -530,6 +535,66 @@ export default function TestAttemptPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Cool Black / Frosted Blur Overlay when Paused */}
+      {isPaused && (
+        <div className="absolute inset-0 z-40 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white select-none animate-fade-in">
+          <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
+            {/* Glowing Pause Badge */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute -inset-2 rounded-full bg-amber-500/20 blur-xl animate-pulse" />
+              <div className="w-20 h-20 rounded-full bg-slate-900/90 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.3)]">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" rx="1.5" />
+                  <rect x="14" y="4" width="4" height="16" rx="1.5" />
+                </svg>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-amber-400 block mb-1">
+                Examination Paused
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                Test Screen Suspended
+              </h2>
+              <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                Your countdown timer is stopped and exam questions are hidden. Take a breath and resume whenever you are ready.
+              </p>
+            </div>
+
+            {/* Time Remaining Pill */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 border border-slate-700/80 text-xs font-mono text-slate-300 shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>
+                Time Remaining:{' '}
+                {Math.floor(timeRemainingSeconds / 3600)}:
+                {Math.floor((timeRemainingSeconds % 3600) / 60)
+                  .toString()
+                  .padStart(2, '0')}:
+                {(timeRemainingSeconds % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+
+            {/* Resume Button */}
+            <button
+              type="button"
+              onClick={() => setIsPaused(false)}
+              className="mt-2 px-8 py-3 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-lg shadow-blue-600/30 hover:shadow-blue-500/50 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span>Resume Examination</span>
+            </button>
+
+            <span className="text-[11px] text-slate-500 block pt-1">
+              You can also click the play button next to the timer in the header
+            </span>
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Submission Confirmation Modal */}
