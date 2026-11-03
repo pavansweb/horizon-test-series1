@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { Test, PublicTest, TestResult } from './types';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, getSupabase } from './supabase';
 
 const isServerless = !!(
   process.env.VERCEL ||
@@ -196,9 +196,10 @@ export async function getAllTests(includeDrafts: boolean = false): Promise<Test[
   }
 
   // 2. Overlay / merge any tests from Supabase
-  if (isSupabaseConfigured && supabase) {
+  const sb = getSupabase() || supabase;
+  if (sb) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('jee_tests')
         .select('*')
         .order('createdAt', { ascending: false });
@@ -230,9 +231,10 @@ export async function getAllTests(includeDrafts: boolean = false): Promise<Test[
  * Gets a test by ID (including full answer key for grading & admin)
  */
 export async function getTestById(id: string): Promise<Test | null> {
-  if (isSupabaseConfigured && supabase) {
+  const sb = getSupabase() || supabase;
+  if (sb) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('jee_tests')
         .select('*')
         .eq('id', id)
