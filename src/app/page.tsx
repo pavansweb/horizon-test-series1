@@ -14,6 +14,7 @@ import {
   ChevronLeftIcon,
 } from '@/components/icons/Icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NtaInstructionsScreen } from '@/components/nta/NtaInstructionsScreen';
 
 function formatUploadDateTime(dateStr?: string): string {
   if (!dateStr) return '';
