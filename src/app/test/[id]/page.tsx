@@ -23,7 +23,12 @@ export default function TestAttemptPage({
   const router = useRouter();
   const testId = params.id;
 
-  const candidateName = searchParams?.name?.trim() || 'JEE Aspirant';
+  const [candidateName, setCandidateName] = useState<string>(() => {
+    return searchParams?.name?.trim() || '';
+  });
+  const [isNameModalOpen, setIsNameModalOpen] = useState<boolean>(false);
+  const [nameModalInput, setNameModalInput] = useState<string>('');
+  const [nameModalError, setNameModalError] = useState<string>('');
 
   const [test, setTest] = useState<PublicTest | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -80,6 +85,10 @@ export default function TestAttemptPage({
             }
             if (parsed.currentQuestionNumber) setCurrentQuestionNumber(parsed.currentQuestionNumber);
             if (parsed.activeSubjectId) setActiveSubjectId(parsed.activeSubjectId);
+            if (parsed.candidateName?.trim() && !searchParams?.name?.trim()) {
+              setCandidateName(parsed.candidateName.trim());
+              setNameModalInput(parsed.candidateName.trim());
+            }
 
             const currentResp = parsed.candidateResponses?.[parsed.currentQuestionNumber || 1];
             if (currentResp) setSelectedOption(currentResp.selectedOption || null);
@@ -104,7 +113,68 @@ export default function TestAttemptPage({
     }
 
     loadTest();
-  }, [testId, storageKey]);
+  }, [testId, storageKey, searchParams?.name]);
+
+  // Candidate Name Resolution
+  useEffect(() => {
+    // 1. URL search param has first priority
+    const paramName = searchParams?.name?.trim();
+    if (paramName) {
+      setCandidateName(paramName);
+      setNameModalInput(paramName);
+      try {
+        localStorage.setItem('cbt_candidate_name', paramName);
+      } catch {}
+      return;
+    }
+
+    // 2. Saved session in storageKey
+    try {
+      const savedSession = localStorage.getItem(storageKey);
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.candidateName?.trim()) {
+          setCandidateName(parsed.candidateName.trim());
+          setNameModalInput(parsed.candidateName.trim());
+          return;
+        }
+      }
+    } catch {}
+
+    // 3. Global saved candidate name in localStorage
+    try {
+      const savedGlobal = localStorage.getItem('cbt_candidate_name')?.trim();
+      if (savedGlobal) {
+        setCandidateName(savedGlobal);
+        setNameModalInput(savedGlobal);
+        return;
+      }
+    } catch {}
+
+    // 4. No candidate name found at all -> open modal to ask name
+    setIsNameModalOpen(true);
+  }, [searchParams?.name, storageKey]);
+
+  const handleSaveNameFromModal = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = nameModalInput.trim();
+    if (!trimmed) {
+      setNameModalError('Please enter your full name to proceed with the exam.');
+      return;
+    }
+    setCandidateName(trimmed);
+    try {
+      localStorage.setItem('cbt_candidate_name', trimmed);
+    } catch {}
+    setIsNameModalOpen(false);
+    setNameModalError('');
+  };
+
+  const handleOpenEditName = () => {
+    setNameModalInput(candidateName || '');
+    setNameModalError('');
+    setIsNameModalOpen(true);
+  };
 
   // Sync selectedOption whenever currentQuestionNumber changes
   useEffect(() => {
@@ -147,6 +217,7 @@ export default function TestAttemptPage({
       timeRemainingSeconds,
       currentQuestionNumber,
       activeSubjectId,
+      candidateName: candidateName.trim() || undefined,
       lastSaved: new Date().toISOString(),
     };
     try {
@@ -154,7 +225,7 @@ export default function TestAttemptPage({
     } catch {
       // Ignore
     }
-  }, [candidateResponses, timeRemainingSeconds, currentQuestionNumber, activeSubjectId, testId, storageKey, test]);
+  }, [candidateResponses, timeRemainingSeconds, currentQuestionNumber, activeSubjectId, testId, storageKey, test, candidateName]);
 
   // Submit test handler
   const handleFinalSubmit = useCallback(async () => {
@@ -180,7 +251,7 @@ export default function TestAttemptPage({
           testId,
           candidateResponses: answers,
           timeTakenSeconds: Math.max(timeTaken, 0),
-          candidateName: candidateName,
+          candidateName: candidateName.trim() || 'JEE Aspirant',
         }),
       });
 
@@ -202,7 +273,7 @@ export default function TestAttemptPage({
 
   // Timer countdown
   useEffect(() => {
-    if (loading || !test) return;
+    if (loading || !test || isNameModalOpen) return;
 
     timerRef.current = setInterval(() => {
       setTimeRemainingSeconds((prev) => {
@@ -218,7 +289,7 @@ export default function TestAttemptPage({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [loading, test, handleFinalSubmit]);
+  }, [loading, test, isNameModalOpen, handleFinalSubmit]);
 
   const totalQuestionsCount = test
     ? test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0)
@@ -356,9 +427,10 @@ export default function TestAttemptPage({
     <div className="nta-exam-ui w-screen h-screen flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* 1. Header with HORIZON TEST SERIES branding & Pill Timer */}
       <NtaHeader
-        candidateName={candidateName}
+        candidateName={candidateName || 'JEE Aspirant'}
         timeRemainingSeconds={timeRemainingSeconds}
         onSubmitTest={() => setIsSubmitModalOpen(true)}
+        onEditName={handleOpenEditName}
       />
 
       {/* 2. Dark Navy Subject Navigation Bar */}
@@ -477,6 +549,69 @@ export default function TestAttemptPage({
         durationMinutes={test.duration}
         markingScheme={test.markingScheme}
       />
+
+      {/* Candidate Name Verification Modal */}
+      {isNameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-fade-in select-none">
+          <div className="bg-white dark:bg-slate-900 border-2 border-blue-800 dark:border-blue-600 rounded-xl max-w-md w-full overflow-hidden shadow-2xl transition-all">
+            <div className="bg-[#1e4273] dark:bg-slate-800 text-white p-4">
+              <h3 className="text-base font-bold">Candidate Verification</h3>
+              <p className="text-xs text-blue-100 dark:text-slate-300 mt-1">
+                Enter your name to appear on this examination paper and official analysis scorecard.
+              </p>
+            </div>
+            <form onSubmit={handleSaveNameFromModal} className="p-4 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Candidate Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. Rahul Sharma"
+                  value={nameModalInput}
+                  onChange={(e) => {
+                    setNameModalInput(e.target.value);
+                    if (nameModalError) setNameModalError('');
+                  }}
+                  className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
+                    nameModalError
+                      ? 'border-red-500 focus:ring-red-400'
+                      : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500'
+                  }`}
+                />
+                {nameModalError && (
+                  <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                    {nameModalError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                {candidateName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNameModalInput(candidateName);
+                      setIsNameModalOpen(false);
+                      setNameModalError('');
+                    }}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-lg shadow-sm cursor-pointer transition-colors"
+                >
+                  Confirm &amp; Proceed →
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

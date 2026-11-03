@@ -131,10 +131,17 @@ export default function ResultPage({
               Horizon-Test-series • Result Card
             </span>
             <h1 className="text-xl sm:text-2xl font-black">{result.testTitle}</h1>
-            <p className="text-xs text-blue-200 dark:text-slate-400">
-              Candidate: <span className="font-bold text-white">{result.candidateName}</span> • Submitted on{' '}
-              {new Date(result.submittedAt).toLocaleString()}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-800/80 text-blue-100 border border-blue-400/30">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+                Candidate: {result.candidateName || 'JEE Aspirant'}
+              </span>
+              <span className="text-xs text-blue-200 dark:text-slate-400">
+                • Submitted on {new Date(result.submittedAt).toLocaleString()}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -159,6 +166,30 @@ export default function ResultPage({
         {/* SECTION 1: RESULT AND PERFORMANCE ANALYSIS                                */}
         {/* ========================================================================= */}
         <section className="space-y-4">
+          {/* Candidate Analysis Header Banner */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 flex items-center justify-center shrink-0 text-blue-700 dark:text-blue-400">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+              </div>
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Candidate Performance Analysis
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+                  {result.candidateName || 'JEE Aspirant'}
+                </h2>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 font-semibold">
+                Exam Paper: {result.testTitle}
+              </span>
+            </div>
+          </div>
+
           {/* Overview Score Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {/* Card 1: Total Marks */}

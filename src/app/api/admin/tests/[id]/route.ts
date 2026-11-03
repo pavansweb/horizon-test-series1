@@ -39,6 +39,7 @@ export async function PUT(
       markingScheme,
       answerKey: body.answerKey !== undefined ? body.answerKey : existing.answerKey,
       status: body.status !== undefined ? body.status : existing.status,
+      isProofread: body.isProofread !== undefined ? Boolean(body.isProofread) : existing.isProofread,
     });
 
     return NextResponse.json({ success: true, test: updated });

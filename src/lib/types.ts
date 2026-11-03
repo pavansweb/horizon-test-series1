@@ -63,6 +63,7 @@ export interface Test {
   markingScheme: MarkingScheme;
   answerKey: Record<number, string>; // questionNumber (1..N) -> 'A' | 'B' | 'C' | 'D' or integer e.g. '5'
   status: 'draft' | 'published';
+  isProofread?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +84,7 @@ export interface PublicTest {
   markingScheme: MarkingScheme;
   totalQuestions: number;
   status: 'published';
+  isProofread?: boolean;
   createdAt: string;
 }
 

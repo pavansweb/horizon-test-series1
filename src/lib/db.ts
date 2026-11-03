@@ -132,6 +132,12 @@ function hydrateTest(row: DbRow | Test): Test {
     markingScheme: (r.markingScheme as Test['markingScheme']) || { correct: 4, incorrect: -1, unattempted: 0 },
     answerKey: (r.answerKey as Test['answerKey']) || {},
     status: (r.status as Test['status']) || 'draft',
+    isProofread:
+      r.isProofread !== undefined && r.isProofread !== null
+        ? Boolean(r.isProofread)
+        : markingScheme._isProofread !== undefined && markingScheme._isProofread !== null
+        ? Boolean(markingScheme._isProofread)
+        : false,
     createdAt: (r.createdAt as string) || new Date().toISOString(),
     updatedAt: (r.updatedAt as string) || new Date().toISOString(),
     integerQuestions:
@@ -167,10 +173,18 @@ function hydrateTest(row: DbRow | Test): Test {
  * (integerQuestions, pdfStartPage, pdfEndPage) and embeds them safely in markingScheme JSONB.
  */
 function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRow {
+  const { questions, isProofread, ...rest } = test;
   if (!fallbackMode) {
-    return { ...test } as unknown as DbRow;
+    return {
+      ...rest,
+      markingScheme: {
+        ...test.markingScheme,
+        _questions: questions || [],
+        _isProofread: isProofread ?? false,
+      },
+    } as unknown as DbRow;
   }
-  const { integerQuestions, pdfStartPage, pdfEndPage, questions, ...base } = test;
+  const { integerQuestions, pdfStartPage, pdfEndPage, ...base } = rest;
   return {
     ...base,
     markingScheme: {
@@ -179,6 +193,7 @@ function prepareSupabasePayload(test: Test, fallbackMode: boolean = false): DbRo
       _pdfStartPage: pdfStartPage || 1,
       _pdfEndPage: pdfEndPage || null,
       _questions: questions || [],
+      _isProofread: isProofread ?? false,
     },
   } as unknown as DbRow;
 }
@@ -295,6 +310,7 @@ export async function getPublicTestById(id: string): Promise<PublicTest | null> 
     markingScheme: test.markingScheme,
     totalQuestions: totalQuestions || 75,
     status: test.status,
+    isProofread: Boolean(test.isProofread),
     createdAt: test.createdAt,
   };
 
