@@ -8,8 +8,27 @@ import {
   BarChartIcon,
   LockIcon,
   AlertCircleIcon,
+  CalendarIcon,
 } from '@/components/icons/Icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+
+function formatUploadDateTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return '';
+  }
+}
 
 export default function StudentHomePage() {
   const [tests, setTests] = useState<PublicTest[]>([]);
@@ -129,6 +148,13 @@ export default function StudentHomePage() {
                   className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden"
                 >
                   <div className="p-5 space-y-3">
+                    {test.createdAt && (
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <CalendarIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>Uploaded: {formatUploadDateTime(test.createdAt)}</span>
+                      </div>
+                    )}
+
                     <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 leading-snug">
                       {test.title}
                     </h3>

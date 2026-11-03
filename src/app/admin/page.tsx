@@ -13,7 +13,26 @@ import {
   ExternalLinkIcon,
   RefreshCwIcon,
   BarChartIcon,
+  CalendarIcon,
 } from '@/components/icons/Icons';
+
+function formatUploadDateTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return '';
+  }
+}
 
 interface SubmissionStats {
   totalSubmissions: number;
@@ -479,6 +498,13 @@ export default function AdminDashboardPage() {
                             {test.duration} mins
                           </span>
                         </div>
+
+                        {test.createdAt && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 dark:text-slate-400">
+                            <CalendarIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span>Uploaded: {formatUploadDateTime(test.createdAt)}</span>
+                          </div>
+                        )}
 
                         {/* Title */}
                         <h3 className="font-extrabold text-base text-gray-900 dark:text-slate-100 leading-snug">
