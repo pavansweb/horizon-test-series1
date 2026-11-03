@@ -634,7 +634,9 @@ Return STRICTLY VALID JSON:
   "hasDiagram": boolean
 }`;
 
-  for (const key of uniqueKeys) {
+  const startKeyIdx = typeof q.questionNumber === 'number' ? q.questionNumber % uniqueKeys.length : 0;
+  for (let k = 0; k < uniqueKeys.length; k++) {
+    const key = uniqueKeys[(startKeyIdx + k) % uniqueKeys.length];
     for (const model of GEMINI_MODELS) {
       try {
         const res = await callGemini(key, model, prompt, '', 18000, 2);
@@ -728,6 +730,12 @@ async function callGemini(
             response_mime_type: 'application/json',
             temperature: 0.1,
           },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ],
         }),
         signal: controller.signal,
       });
