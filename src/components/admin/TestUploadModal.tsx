@@ -428,28 +428,35 @@ export function TestUploadModal({
       setError(null);
       cancelExtractionRef.current = false;
 
-      // If no PDF is available, use the AI question formatter directly
+      // If no PDF is available, use the AI question formatter directly in parallel batches
       if (!pdfUrl) {
         setProcessingStatus(`Formatting ${placeholderQuestions.length} questions with AI...`);
-        for (let i = 0; i < placeholderQuestions.length; i++) {
+        const BATCH_SIZE = 4;
+        for (let i = 0; i < placeholderQuestions.length; i += BATCH_SIZE) {
           if (cancelExtractionRef.current) break;
-          const pq = placeholderQuestions[i];
-          setProcessingStatus(`AI Formatting Q${pq.questionNumber}... (${i + 1} of ${placeholderQuestions.length})`);
+          const batch = placeholderQuestions.slice(i, i + BATCH_SIZE);
+          const firstQ = batch[0].questionNumber;
+          const lastQ = batch[batch.length - 1].questionNumber;
+          setProcessingStatus(`AI Formatting Q${firstQ}–Q${lastQ}... (${Math.min(i + BATCH_SIZE, placeholderQuestions.length)} of ${placeholderQuestions.length})`);
           try {
             const res = await fetch('/api/admin/gemini/parse-paper', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                action: 'format-single-question',
-                question: pq,
+                action: 'batch-format-questions',
+                questions: batch,
               }),
             });
             const data = await res.json();
-            if (res.ok && data.success && data.question) {
-              handleUpdateQuestion(pq.questionNumber, data.question);
+            if (res.ok && data.success && Array.isArray(data.questions)) {
+              data.questions.forEach((formattedQ: TestQuestion) => {
+                if (formattedQ && formattedQ.questionNumber) {
+                  handleUpdateQuestion(formattedQ.questionNumber, formattedQ);
+                }
+              });
             }
           } catch (e) {
-            console.warn(`Format Q${pq.questionNumber} error:`, e);
+            console.warn(`Batch format error for questions:`, e);
           }
         }
         setStep('preview');

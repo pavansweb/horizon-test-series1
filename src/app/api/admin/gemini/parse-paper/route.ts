@@ -31,13 +31,46 @@ interface ParsedExamData {
   questions?: Array<Partial<TestQuestion>>;
 }
 
-const GEMINI_MODELS = [
+// Specialized models: Vision for multi-page PDFs; Fast Lite models for single-question text formatting
+const GEMINI_VISION_MODELS = [
   'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
   'gemini-flash-latest',
   'gemini-3.8-flash',
 ];
+
+const GEMINI_FAST_TEXT_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+];
+
+
+interface KeyHealth {
+  cooldownUntil: number;
+  reason?: string;
+}
+
+// In-memory circuit breaker across warm serverless requests
+const keyHealthMap = new Map<string, KeyHealth>();
+
+function markKeyCooldown(key: string, durationMs: number, reason: string) {
+  const maskedKey = key.slice(0, 10) + '...';
+  console.warn(`[KeyHealthTracker] Key ${maskedKey} cooled down for ${Math.round(durationMs / 1000)}s: ${reason}`);
+  keyHealthMap.set(key, {
+    cooldownUntil: Date.now() + durationMs,
+    reason,
+  });
+}
+
+function getHealthyKeys(keys: string[]): string[] {
+  const now = Date.now();
+  const healthy = keys.filter((k) => {
+    const health = keyHealthMap.get(k);
+    return !health || health.cooldownUntil < now;
+  });
+  return healthy.length > 0 ? healthy : keys;
+}
 
 /**
  * Slices only the relevant page range from a full PDF using pdf-lib.
@@ -147,16 +180,22 @@ function stripHindiText(text: string): string {
   return result;
 }
 
+function normalizeLatexMath(text: string): string {
+  if (!text) return '';
+  // Fix double-escaped backslashes from raw JSON strings (\\\\frac -> \frac)
+  return text.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
+}
+
 /**
  * Sanitizes a question by stripping any Hindi text from question statement and all options.
  */
 function sanitizeQuestion<T extends Partial<TestQuestion>>(q: T): T {
   if (!q) return q;
 
-  const questionText = stripHindiText(q.questionText || '');
+  const questionText = normalizeLatexMath(stripHindiText(q.questionText || ''));
   const options = (q.options || []).map((opt) => ({
     ...opt,
-    text: stripHindiText(cleanOptionText(opt.text || '', opt.id)),
+    text: normalizeLatexMath(stripHindiText(cleanOptionText(opt.text || '', opt.id))),
   }));
 
   return {
@@ -199,6 +238,35 @@ export async function POST(request: NextRequest) {
       if (body.action === 'format-single-question') {
         const formatted = await formatSingleQuestionWithAi(uniqueKeys, body.question);
         return NextResponse.json({ success: true, question: formatted });
+      }
+
+      // Action 1b: Batch format multiple questions in parallel
+      if (body.action === 'batch-format-questions' && Array.isArray(body.questions)) {
+        const rawQuestions: Partial<TestQuestion>[] = body.questions;
+        const healthyKeys = getHealthyKeys(uniqueKeys);
+        const concurrency = Math.min(Math.max(2, healthyKeys.length * 2), 4);
+
+        const results: Partial<TestQuestion>[] = new Array(rawQuestions.length);
+        let cursor = 0;
+
+        const worker = async () => {
+          while (cursor < rawQuestions.length) {
+            const idx = cursor++;
+            const q = rawQuestions[idx];
+            if (!q) continue;
+            try {
+              results[idx] = await formatSingleQuestionWithAi(healthyKeys, q);
+            } catch (err) {
+              console.warn(`[BatchFormat] Q${q.questionNumber} formatting error, keeping raw:`, err);
+              results[idx] = sanitizeQuestion(q);
+            }
+          }
+        };
+
+        const workers = Array.from({ length: Math.min(concurrency, rawQuestions.length) }, () => worker());
+        await Promise.all(workers);
+
+        return NextResponse.json({ success: true, questions: results });
       }
 
       // Action 2: Extract specific question chunk (lightweight & fast for Vercel)
@@ -324,10 +392,11 @@ CRITICAL INSTRUCTIONS FOR BILINGUAL & UNSTRUCTURED PAPERS:
     let parsedStructure: ParsedExamData | null = null;
     let lastError: string | null = null;
 
-    for (let keyIdx = 0; keyIdx < uniqueKeys.length; keyIdx++) {
-      const activeKey = uniqueKeys[keyIdx];
+    const healthyKeys = getHealthyKeys(uniqueKeys);
+    for (let keyIdx = 0; keyIdx < healthyKeys.length; keyIdx++) {
+      const activeKey = healthyKeys[keyIdx];
 
-      for (const model of GEMINI_MODELS) {
+      for (const model of GEMINI_VISION_MODELS) {
         try {
           const res = await callGemini(activeKey, model, structurePrompt, pdfBase64, 35000, 2);
           if (res) {
@@ -520,10 +589,11 @@ Return STRICTLY VALID JSON:
   ]
 }`;
 
-  for (let k = 0; k < uniqueKeys.length; k++) {
-    const key = uniqueKeys[(chunkIndex + k) % uniqueKeys.length];
+  const healthyKeys = getHealthyKeys(uniqueKeys);
+  for (let k = 0; k < healthyKeys.length; k++) {
+    const key = healthyKeys[(chunkIndex + k) % healthyKeys.length];
 
-    for (const model of GEMINI_MODELS) {
+    for (const model of GEMINI_VISION_MODELS) {
       try {
         const res = await callGemini(key, model, prompt, targetPdfBase64, 25000, 2);
         if (res) {
@@ -580,9 +650,11 @@ Return STRICTLY VALID JSON:
   "hasDiagram": boolean
 }`;
 
-  for (let k = 0; k < uniqueKeys.length; k++) {
-    const key = uniqueKeys[k];
-    for (const model of GEMINI_MODELS) {
+  const healthyKeys = getHealthyKeys(uniqueKeys);
+  const startIdx = questionNumber % healthyKeys.length;
+  for (let k = 0; k < healthyKeys.length; k++) {
+    const key = healthyKeys[(startIdx + k) % healthyKeys.length];
+    for (const model of GEMINI_VISION_MODELS) {
       try {
         const res = await callGemini(key, model, prompt, targetPdfBase64, 20000, 2);
         if (res) {
@@ -634,12 +706,13 @@ Return STRICTLY VALID JSON:
   "hasDiagram": boolean
 }`;
 
-  const startKeyIdx = typeof q.questionNumber === 'number' ? q.questionNumber % uniqueKeys.length : 0;
-  for (let k = 0; k < uniqueKeys.length; k++) {
-    const key = uniqueKeys[(startKeyIdx + k) % uniqueKeys.length];
-    for (const model of GEMINI_MODELS) {
+  const healthyKeys = getHealthyKeys(uniqueKeys);
+  const startKeyIdx = typeof q.questionNumber === 'number' ? q.questionNumber % healthyKeys.length : 0;
+  for (let k = 0; k < healthyKeys.length; k++) {
+    const key = healthyKeys[(startKeyIdx + k) % healthyKeys.length];
+    for (const model of GEMINI_FAST_TEXT_MODELS) {
       try {
-        const res = await callGemini(key, model, prompt, '', 18000, 2);
+        const res = await callGemini(key, model, prompt, '', 16000, 2);
         if (res) {
           const parsed = JSON.parse(res);
           const formatted = {
@@ -704,6 +777,11 @@ async function callGemini(
   timeoutMs: number,
   retries: number = 2
 ): Promise<string | null> {
+  const health = keyHealthMap.get(apiKey);
+  if (health && health.cooldownUntil > Date.now()) {
+    throw new Error(`Key in cooldown (${health.reason})`);
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -764,7 +842,19 @@ async function callGemini(
       const status = response.status;
       const errorMsg = data.error?.message || `Status ${status}`;
 
-      // 503 (High demand) or 429 (Rate limit) or 500: Wait with exponential backoff and retry
+      // 401 or 403: Suspended / invalid key -> Trigger Circuit Breaker for 30 minutes
+      if (status === 401 || status === 403) {
+        markKeyCooldown(apiKey, 30 * 60 * 1000, `Auth error ${status}`);
+        throw new Error(errorMsg);
+      }
+
+      // 429 Daily Limit Quota Exhaustion -> Trigger Circuit Breaker for 15 minutes
+      if (status === 429 && (errorMsg.includes('quota') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('per day limit'))) {
+        markKeyCooldown(apiKey, 15 * 60 * 1000, 'Daily quota exhausted');
+        throw new Error(errorMsg);
+      }
+
+      // 503 (High demand) or transient 429: Wait with exponential backoff and retry
       if ((status === 503 || status === 429 || status === 500) && attempt < retries) {
         const backoffMs = 1500 * (attempt + 1) + Math.floor(Math.random() * 1000);
         console.warn(`[Gemini ${model}] ${status} ${errorMsg}. Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${retries})...`);
@@ -795,7 +885,10 @@ async function callGemini(
 function cleanOptionText(raw: string, optId: string): string {
   if (!raw) return '';
   let cleaned = raw.trim();
-  cleaned = cleaned.replace(new RegExp(`^\\s*[(]?(?:${optId}|[1-4])[).:-]\\s*`, 'i'), '').trim();
+  // Strip leading option badges: (A), (1), A., 1., [a], (a)
+  cleaned = cleaned.replace(new RegExp(`^\\s*[([]?(?:${optId}|[1-4]|[A-D]|[a-d])[)\\]:.-]\\s*`, 'i'), '').trim();
+  // Strip Hindi option prefixes like (क), (ख), (ग), (घ)
+  cleaned = cleaned.replace(/^\s*[([]?[कखगघ][)\\]:.-]\s*/, '').trim();
   return cleaned || raw;
 }
 
