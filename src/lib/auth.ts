@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers.js';
 import crypto from 'crypto';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'jee2026admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'jee2027';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'nta-jee-cbt-secret-key-32charsmin-2026';
 const COOKIE_NAME = 'admin_session';
 

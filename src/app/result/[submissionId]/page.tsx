@@ -30,6 +30,7 @@ export default function ResultPage({
   const [statusFilter, setStatusFilter] = useState<'all' | 'correct' | 'incorrect' | 'unattempted'>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [exportInitialTab, setExportInitialTab] = useState<'ai' | 'json' | 'report'>('ai');
 
   useEffect(() => {
     async function loadResult() {
@@ -145,14 +146,29 @@ export default function ResultPage({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsExportModalOpen(true)}
+              onClick={() => {
+                setExportInitialTab('report');
+                setIsExportModalOpen(true);
+              }}
+              className="px-3.5 py-1.5 text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              title="View, print, or download official high-resolution scorecard image"
+            >
+              <span>📊</span>
+              <span>Official Scorecard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExportInitialTab('ai');
+                setIsExportModalOpen(true);
+              }}
               className="px-3.5 py-1.5 text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>📤</span>
-              <span>Export Result</span>
+              <span>Export for AI</span>
             </button>
             <a
               href="#paper-review-section"
@@ -721,6 +737,7 @@ export default function ResultPage({
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           result={result}
+          initialTab={exportInitialTab}
         />
       )}
     </div>

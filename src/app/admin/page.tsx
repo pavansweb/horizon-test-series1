@@ -79,6 +79,10 @@ export default function AdminDashboardPage() {
   const [inlineNewFolder, setInlineNewFolder] = useState<string>('');
   const [isSavingMove, setIsSavingMove] = useState<boolean>(false);
 
+  // Authorization Gate State
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+
   // Theme state (Dark Mode)
   const [isDark, setIsDark] = useState<boolean>(false);
 
@@ -284,18 +288,52 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    fetchTests();
-    fetchSubmissions();
-    fetchFolders();
-  }, [fetchTests, fetchSubmissions, fetchFolders]);
+    let isMounted = true;
+
+    async function checkAuthorization() {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/verify', {
+          headers: { 'x-admin-token': token },
+          cache: 'no-store',
+        });
+        if (res.ok && isMounted) {
+          setIsAuthorized(true);
+          setAuthChecking(false);
+          fetchTests();
+          fetchSubmissions();
+          fetchFolders();
+        } else {
+          sessionStorage.removeItem('admin_token');
+          router.replace('/admin/login');
+        }
+      } catch {
+        sessionStorage.removeItem('admin_token');
+        router.replace('/admin/login');
+      }
+    }
+
+    checkAuthorization();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router, fetchTests, fetchSubmissions, fetchFolders]);
 
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/logout', { method: 'POST' });
       sessionStorage.removeItem('admin_token');
-      router.push('/admin/login');
+      setIsAuthorized(false);
+      router.replace('/admin/login');
     } catch {
-      router.push('/admin/login');
+      setIsAuthorized(false);
+      router.replace('/admin/login');
     }
   };
 
@@ -438,6 +476,17 @@ export default function AdminDashboardPage() {
     }
     return `${mins}m ${secs}s`;
   };
+
+  if (authChecking || !isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center p-4 select-none">
+        <div className="w-9 h-9 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3.5" />
+        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 tracking-wide">
+          Verifying Administrator Authorization...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans pb-12 transition-colors">

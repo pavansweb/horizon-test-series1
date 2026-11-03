@@ -48,6 +48,12 @@ export default function TestAttemptPage({
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const timeRemainingSecondsRef = useRef<number>(timeRemainingSeconds);
+  timeRemainingSecondsRef.current = timeRemainingSeconds;
+
+  const candidateResponsesRef = useRef<CandidateResponseMap>(candidateResponses);
+  candidateResponsesRef.current = candidateResponses;
+
   // Palette collapse toggle (for the '>' toggle button on divider)
   const [isPaletteCollapsed, setIsPaletteCollapsed] = useState<boolean>(false);
 
@@ -238,12 +244,13 @@ export default function TestAttemptPage({
       const answers: Record<number, string | null> = {};
       const totalQ = test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0);
 
+      const currentResponses = candidateResponsesRef.current;
       for (let q = 1; q <= totalQ; q++) {
-        const resp = candidateResponses[q];
+        const resp = currentResponses[q];
         answers[q] = resp?.selectedOption || null;
       }
 
-      const timeTaken = test.duration * 60 - timeRemainingSeconds;
+      const timeTaken = test.duration * 60 - timeRemainingSecondsRef.current;
 
       const res = await fetch(`/api/tests/${testId}/submit`, {
         method: 'POST',
@@ -270,16 +277,25 @@ export default function TestAttemptPage({
       alert('Network error while submitting. Please check connection and try again.');
       setIsSubmitting(false);
     }
-  }, [test, isSubmitting, candidateResponses, timeRemainingSeconds, testId, storageKey, candidateName, router]);
+  }, [test, isSubmitting, testId, storageKey, candidateName, router]);
 
   // Timer countdown
   useEffect(() => {
-    if (loading || !test || isNameModalOpen) return;
+    if (loading || !test || isNameModalOpen || isPaused) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
 
     timerRef.current = setInterval(() => {
       setTimeRemainingSeconds((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current!);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           handleFinalSubmit();
           return 0;
         }
@@ -288,9 +304,12 @@ export default function TestAttemptPage({
     }, 1000);
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [loading, test, isNameModalOpen, handleFinalSubmit]);
+  }, [loading, test, isNameModalOpen, isPaused, handleFinalSubmit]);
 
   const totalQuestionsCount = test
     ? test.subjects.reduce((sum, s) => sum + s.totalQuestions, 0)
@@ -537,62 +556,25 @@ export default function TestAttemptPage({
         </div>
       </div>
 
-      {/* Cool Black / Frosted Blur Overlay when Paused */}
+      {/* Black / Frosted Overlay when Paused */}
       {isPaused && (
-        <div className="absolute inset-0 z-40 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white select-none animate-fade-in">
-          <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
-            {/* Glowing Pause Badge */}
-            <div className="relative flex items-center justify-center">
-              <div className="absolute -inset-2 rounded-full bg-amber-500/20 blur-xl animate-pulse" />
-              <div className="w-20 h-20 rounded-full bg-slate-900/90 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.3)]">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16" rx="1.5" />
-                  <rect x="14" y="4" width="4" height="16" rx="1.5" />
-                </svg>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-amber-400 block mb-1">
-                Examination Paused
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white">
-                Test Screen Suspended
-              </h2>
-              <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                Your countdown timer is stopped and exam questions are hidden. Take a breath and resume whenever you are ready.
-              </p>
-            </div>
-
-            {/* Time Remaining Pill */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 border border-slate-700/80 text-xs font-mono text-slate-300 shadow-inner">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span>
-                Time Remaining:{' '}
-                {Math.floor(timeRemainingSeconds / 3600)}:
-                {Math.floor((timeRemainingSeconds % 3600) / 60)
-                  .toString()
-                  .padStart(2, '0')}:
-                {(timeRemainingSeconds % 60).toString().padStart(2, '0')}
-              </span>
-            </div>
-
-            {/* Resume Button */}
-            <button
-              type="button"
-              onClick={() => setIsPaused(false)}
-              className="mt-2 px-8 py-3 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-lg shadow-blue-600/30 hover:shadow-blue-500/50 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              <span>Resume Examination</span>
-            </button>
-
-            <span className="text-[11px] text-slate-500 block pt-1">
-              You can also click the play button next to the timer in the header
-            </span>
-          </div>
+        <div
+          onClick={() => setIsPaused(false)}
+          className="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white select-none animate-fade-in cursor-pointer"
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsPaused(false);
+            }}
+            className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm flex items-center gap-2 shadow cursor-pointer transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            <span>Resume</span>
+          </button>
         </div>
       )}
       </div>

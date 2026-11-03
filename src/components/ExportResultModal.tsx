@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TestResult } from '@/lib/types';
 import {
   generateAiMarkdownPrompt,
@@ -8,16 +8,24 @@ import {
   triggerFileDownload,
   copyTextToClipboard,
 } from '@/lib/exportResult';
+import { StructuredScorecard } from '@/components/StructuredScorecard';
 
 interface ExportResultModalProps {
   isOpen: boolean;
   onClose: () => void;
   result: TestResult;
+  initialTab?: 'ai' | 'json' | 'report';
 }
 
-export function ExportResultModal({ isOpen, onClose, result }: ExportResultModalProps) {
-  const [activeTab, setActiveTab] = useState<'ai' | 'json' | 'report'>('ai');
+export function ExportResultModal({ isOpen, onClose, result, initialTab = 'ai' }: ExportResultModalProps) {
+  const [activeTab, setActiveTab] = useState<'ai' | 'json' | 'report'>(initialTab);
   const [copiedType, setCopiedType] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -49,10 +57,6 @@ export function ExportResultModal({ isOpen, onClose, result }: ExportResultModal
   const handleDownloadJson = () => {
     const json = generateRawJsonExport(result);
     triggerFileDownload(`${safeTitle}_raw_data.json`, json, 'application/json');
-  };
-
-  const handlePrintScorecard = () => {
-    window.print();
   };
 
   const aiMarkdownPreview = generateAiMarkdownPrompt(result);
@@ -264,151 +268,9 @@ export function ExportResultModal({ isOpen, onClose, result }: ExportResultModal
             </div>
           )}
 
-          {/* TAB 3: Structured Scorecard Report */}
+          {/* TAB 3: Structured Scorecard Report (High-Res Image / Print / PDF) */}
           {activeTab === 'report' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-1">
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
-                    Structured Mock Test Scorecard
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Official format scorecard showing candidate metrics and full question performance grid.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handlePrintScorecard}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>🖨️</span>
-                  <span>Print / Save as PDF</span>
-                </button>
-              </div>
-
-              {/* Printable Scorecard Card */}
-              <div className="p-6 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-sm space-y-5 text-slate-900 dark:text-slate-100">
-                {/* Header */}
-                <div className="text-center pb-4 border-b border-slate-200 dark:border-slate-800">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-400">
-                    Horizon-Test-series • Examination Result Card
-                  </span>
-                  <h2 className="text-xl font-black mt-0.5">{result.testTitle}</h2>
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    <span><strong>Candidate:</strong> {result.candidateName || 'JEE Aspirant'}</span>
-                    <span>•</span>
-                    <span><strong>Date:</strong> {new Date(result.submittedAt).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span><strong>Submission ID:</strong> #{result.submissionId.slice(0, 8)}</span>
-                  </div>
-                </div>
-
-                {/* Score Summary Banner */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Total Score</span>
-                    <span className="text-2xl font-black text-blue-700 dark:text-blue-400">
-                      {result.totalScore} <span className="text-xs text-slate-500 font-semibold">/ {result.maxScore}</span>
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Accuracy</span>
-                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                      {result.overallAccuracy}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Attempts</span>
-                    <span className="text-2xl font-black text-slate-800 dark:text-slate-200">
-                      {result.totalAttempted} <span className="text-xs text-slate-500 font-semibold">/ {result.totalQuestions}</span>
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Breakdown</span>
-                    <span className="text-xs font-bold block mt-1">
-                      <span className="text-green-600">✓ {result.totalCorrect}</span>{' '}
-                      <span className="text-red-600">✗ {result.totalIncorrect}</span>{' '}
-                      <span className="text-slate-500">○ {result.totalUnattempted}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Subject Breakdown */}
-                <div>
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-500 mb-2">
-                    Subject Performance
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <th className="p-2">Subject</th>
-                          <th className="p-2 text-center">Score</th>
-                          <th className="p-2 text-center">Attempted</th>
-                          <th className="p-2 text-center text-green-600">Correct</th>
-                          <th className="p-2 text-center text-red-600">Wrong</th>
-                          <th className="p-2 text-center">Accuracy</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result.subjectResults.map((sub) => (
-                          <tr key={sub.subjectId} className="border-b border-slate-100 dark:border-slate-800">
-                            <td className="p-2 font-bold">{sub.subjectName}</td>
-                            <td className="p-2 text-center font-bold text-blue-600">{sub.score} / {sub.maxScore}</td>
-                            <td className="p-2 text-center">{sub.attempted}/{sub.totalQuestions}</td>
-                            <td className="p-2 text-center font-bold text-green-600">{sub.correct}</td>
-                            <td className="p-2 text-center font-bold text-red-600">{sub.incorrect}</td>
-                            <td className="p-2 text-center font-bold">{sub.accuracy}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Question Status Matrix */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-500">
-                      Questions Matrix ({result.totalQuestions} Questions)
-                    </h4>
-                    <div className="flex items-center gap-3 text-[10px]">
-                      <span className="flex items-center gap-1 font-semibold text-green-600">
-                        <span className="w-2.5 h-2.5 rounded-full bg-green-600" /> Correct
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-red-600">
-                        <span className="w-2.5 h-2.5 rounded-full bg-red-600" /> Wrong
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-slate-500">
-                        <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700" /> Left
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-10 sm:grid-cols-15 gap-1 pt-1">
-                    {result.questionReviews.map((q) => {
-                      let badge = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700';
-                      if (q.status === 'correct') {
-                        badge = 'bg-green-600 text-white border-green-700 font-black';
-                      } else if (q.status === 'incorrect') {
-                        badge = 'bg-red-600 text-white border-red-700 font-black';
-                      }
-
-                      return (
-                        <div
-                          key={q.questionNumber}
-                          className={`h-7 rounded border text-[11px] font-bold flex items-center justify-center ${badge}`}
-                          title={`Q${q.questionNumber}: ${q.status.toUpperCase()} (Your: ${q.selectedOption || 'None'}, Key: ${q.correctOption})`}
-                        >
-                          {q.questionNumber}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StructuredScorecard result={result} />
           )}
         </div>
 

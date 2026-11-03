@@ -146,9 +146,6 @@ export default function AdminLoginPage() {
                   className="block w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 placeholder-gray-400 dark:placeholder-slate-500"
                 />
               </div>
-              <p className="mt-1.5 text-[11px] text-gray-400 dark:text-slate-500">
-                Default password: <code className="bg-gray-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-gray-600 dark:text-slate-300">jee2026admin</code>
-              </p>
             </div>
 
             <div>
